@@ -22,26 +22,16 @@ public class MainActivity extends AppCompatActivity {
         webSettings.setDomStorageEnabled(true);
         webSettings.setLoadWithOverviewMode(true);
         webSettings.setUseWideViewPort(true);
-
         // Configure WebView Client to handle custom URL schemes
         webView.setWebViewClient(new WebViewClient() {
             @Override
-            public boolean shouldOverrideUrlLoading(WebView view, WebResourceRequest request) {
-                String url = request.getUrl().toString();
-                // Block custom schemes like baiduboxapp:// to prevent errors
-                if (!url.startsWith("http://") && !url.startsWith("https://")) {
-                    return true; // Return true to indicate we handled the URL (by ignoring it)
-                }
-                return false; // Let WebView handle standard HTTP/HTTPS URLs
-            }
-
-            @Override
             public boolean shouldOverrideUrlLoading(WebView view, String url) {
-                // Compatibility for older Android versions
-                if (!url.startsWith("http://") && !url.startsWith("https://")) {
-                    return true;
+                // Block custom schemes like baiduboxapp:// to prevent errors
+                // Allow only standard http:// and https:// protocols
+                if (url.startsWith("http://") || url.startsWith("https://")) {
+                    return false; // Load in WebView
                 }
-                return false;
+                return true; // Block/Ignore custom schemes
             }
         });
 
