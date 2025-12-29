@@ -390,6 +390,7 @@ public class MainActivity extends Activity {
         });
         builder.show();
     }
+
     private void readPage() {
         webView.evaluateJavascript("(function(){ return document.body.innerText; })();", value -> {
             if (value != null && !value.isEmpty()) {
@@ -401,8 +402,6 @@ public class MainActivity extends Activity {
                 }
             }
         });
-    }
-    }
     }
 
     private void openDownloadFolder() {
