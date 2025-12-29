@@ -23,6 +23,8 @@ import android.widget.EditText;
 import android.widget.LinearLayout;
 import android.widget.TextView;
 import android.webkit.DownloadListener;
+import android.speech.tts.TextToSpeech;
+import android.os.Build;
 
 public class MainActivity extends Activity {
     private WebView webView;
@@ -34,6 +36,7 @@ public class MainActivity extends Activity {
     private Button btnSettings;
     private LinearLayout toolbar;
     private static final String TAG = "Browser";
+    private TextToSpeech textToSpeech;
     private GestureDetector gestureDetector;
     private GestureDetector horizontalGestureDetector;
     private boolean isToolbarVisible = true;
@@ -72,7 +75,6 @@ public class MainActivity extends Activity {
     private static final String SEARCH_ENGINE_DUCKDUCKGO_HOME = "https://duckduckgo.com";
 
     private String currentSearchEngine = SEARCH_ENGINE_BAIDU;
-
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
@@ -82,8 +84,25 @@ public class MainActivity extends Activity {
         initViews();
         setupWebView();
         setupKeyboardListener();
+        initTTS();
 
         webView.loadUrl("https://www.baidu.com");
+    }
+
+    private void initTTS() {
+        textToSpeech = new TextToSpeech(this, new TextToSpeech.OnInitListener() {
+            @Override
+            public void onInit(int status) {
+                if (status == TextToSpeech.SUCCESS) {
+                    int result = textToSpeech.setLanguage(Locale.CHINA);
+                    if (result == TextToSpeech.LANG_MISSING_DATA || result == TextToSpeech.LANG_NOT_SUPPORTED) {
+                        Log.e(TAG, "TTS language not supported");
+                    }
+                } else {
+                    Log.e(TAG, "TTS initialization failed");
+                }
+            }
+        });
     }
 
     private void setupKeyboardListener() {
@@ -355,7 +374,8 @@ public class MainActivity extends Activity {
             "搜索设置",
             "用户代理设置",
             "外部应用跳转: " + (shouldOverrideExternalApp ? "开启" : "关闭"),
-            "查看下载文件"
+            "查看下载文件",
+            "朗读当前页面"
         };
         builder.setItems(options, (dialog, which) -> {
             switch (which) {
@@ -363,9 +383,19 @@ public class MainActivity extends Activity {
                 case 1: showUserAgentDialog(); break;
                 case 2: toggleExternalAppOverride(); break;
                 case 3: openDownloadFolder(); break;
+                case 4: readPage(); break;
             }
         });
         builder.show();
+    }
+
+    private void readPage() {
+        webView.evaluateJavascript("(function(){ return document.body.innerText; })();", value -> {
+            if (value != null && !value.isEmpty()) {
+                String text = value.replace("\\\"", "\"");
+                textToSpeech.speak(text, TextToSpeech.QUEUE_FLUSH);
+            }
+        });
     }
 
     private void openDownloadFolder() {
