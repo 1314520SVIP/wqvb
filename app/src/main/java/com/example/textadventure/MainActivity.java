@@ -348,23 +348,40 @@ public class MainActivity extends Activity {
             isToolbarVisible = true;
         }
     }
-
     private void showSettingsDialog() {
         AlertDialog.Builder builder = new AlertDialog.Builder(this);
         builder.setTitle("设置");
         String[] options = {
             "搜索设置",
             "用户代理设置",
-            "外部应用跳转: " + (shouldOverrideExternalApp ? "开启" : "关闭")
+            "外部应用跳转: " + (shouldOverrideExternalApp ? "开启" : "关闭"),
+            "查看下载文件"
         };
         builder.setItems(options, (dialog, which) -> {
             switch (which) {
                 case 0: showSearchEngineDialog(); break;
                 case 1: showUserAgentDialog(); break;
                 case 2: toggleExternalAppOverride(); break;
+                case 3: openDownloadFolder(); break;
             }
         });
         builder.show();
+    }
+
+    private void openDownloadFolder() {
+        try {
+            Intent intent = new Intent(Intent.ACTION_VIEW);
+            intent.setType("resource/folder");
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
+                intent.setData(android.provider.MediaStore.Downloads.EXTERNAL_CONTENT_URI);
+            } else {
+                intent.setData(Uri.parse("content://downloads/public_downloads"));
+            }
+            intent.addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION | Intent.FLAG_GRANT_WRITE_URI_PERMISSION);
+            startActivity(Intent.createChooser(intent, "打开下载文件夹"));
+        } catch (Exception e) {
+            Log.e(TAG, "无法打开下载文件夹", e);
+        }
     }
 
     private void showSearchEngineDialog() {
