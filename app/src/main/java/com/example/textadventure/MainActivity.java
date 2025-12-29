@@ -399,9 +399,9 @@ public class MainActivity extends Activity {
                 } else {
                     textToSpeech.speak(text, TextToSpeech.QUEUE_FLUSH, null);
                 }
-                }
             }
         });
+    }
     }
     }
 
