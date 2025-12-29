@@ -19,9 +19,9 @@ import android.webkit.WebSettings;
 import android.webkit.WebView;
 import android.webkit.WebViewClient;
 import android.widget.Button;
-import android.widget.EditText;
 import android.widget.LinearLayout;
 import android.widget.TextView;
+import android.widget.Toast;
 import android.webkit.DownloadListener;
 import android.speech.tts.TextToSpeech;
 import android.os.Build;
@@ -535,7 +535,7 @@ public class MainActivity extends Activity {
                 new AlertDialog.Builder(MainActivity.this)
                     .setTitle("确认删除")
                     .setMessage("确定要取消屏蔽 " + domain + " 吗？")
-                    .setPositiveButton("确定", (d, w) -> {
+                    .setPositiveButton("确定", (dialogInner, whichInner) -> {
                         blockedDomains.remove(domain);
                         saveBlockedDomains();
                         Toast.makeText(MainActivity.this, "已取消屏蔽: " + domain, Toast.LENGTH_SHORT).show();
