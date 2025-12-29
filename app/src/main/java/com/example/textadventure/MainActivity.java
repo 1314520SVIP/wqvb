@@ -102,21 +102,31 @@ public class MainActivity extends Activity {
 
         webView.loadUrl("https://www.baidu.com");
     }
-
     private void initTTS() {
-        textToSpeech = new TextToSpeech(this, new TextToSpeech.OnInitListener() {
-            @Override
-            public void onInit(int status) {
-                if (status == TextToSpeech.SUCCESS) {
-                    int result = textToSpeech.setLanguage(Locale.CHINA);
-                    if (result == TextToSpeech.LANG_MISSING_DATA || result == TextToSpeech.LANG_NOT_SUPPORTED) {
-                        Log.e(TAG, "TTS language not supported");
+        try {
+            textToSpeech = new TextToSpeech(this, new TextToSpeech.OnInitListener() {
+                @Override
+                public void onInit(int status) {
+                    if (status == TextToSpeech.SUCCESS) {
+                        // 尝试设置中文，如果失败则尝试默认语言
+                        int result = textToSpeech.setLanguage(Locale.CHINA);
+                        if (result == TextToSpeech.LANG_MISSING_DATA || result == TextToSpeech.LANG_NOT_SUPPORTED) {
+                            Log.w(TAG, "中文不支持，尝试默认语言");
+                            result = textToSpeech.setLanguage(Locale.getDefault());
+                        }
+                        if (result == TextToSpeech.LANG_MISSING_DATA || result == TextToSpeech.LANG_NOT_SUPPORTED) {
+                            Log.e(TAG, "TTS语言不支持");
+                        } else {
+                            Log.d(TAG, "TTS初始化成功");
+                        }
+                    } else {
+                        Log.e(TAG, "TTS初始化失败: " + status);
                     }
-                } else {
-                    Log.e(TAG, "TTS initialization failed");
                 }
-            }
-        });
+            });
+        } catch (Exception e) {
+            Log.e(TAG, "TTS初始化异常", e);
+        }
     }
 
     private void setupKeyboardListener() {
@@ -409,18 +419,51 @@ public class MainActivity extends Activity {
         });
         builder.show();
     }
-
     private void readPage() {
+        if (textToSpeech == null) {
+            Toast.makeText(this, "TTS引擎未初始化，请稍后再试", Toast.LENGTH_SHORT).show();
+            Log.e(TAG, "readPage: textToSpeech is null");
+            return;
+        }
+
+        // 停止当前正在朗读的内容
+        textToSpeech.stop();
+
         webView.evaluateJavascript("(function(){ return document.body.innerText; })();", value -> {
-            if (value != null && !value.isEmpty()) {
-                String text = value.replace("\\\"", "\"");
+            if (value == null || value.equals("") || value.trim().isEmpty()) {
+                Toast.makeText(this, "页面中没有可朗读的文字", Toast.LENGTH_SHORT).show();
+                return;
+            }
+
+            try {
+                // 清理文本：移除转义引号，去除首尾空白
+                String text = value.replace("\\\"", "\"").trim();
+                
+                // 如果文本太长，可能需要截断或分段朗读（这里简化处理）
+                if (text.length() > 5000) {
+                    text = text.substring(0, 5000);
+                    Toast.makeText(this, "文字过长，仅朗读前5000字", Toast.LENGTH_LONG).show();
+                }
+
                 if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.LOLLIPOP) {
-                    textToSpeech.speak(text, TextToSpeech.QUEUE_FLUSH, null, "ReadPage");
+                    int result = textToSpeech.speak(text, TextToSpeech.QUEUE_FLUSH, null, "ReadPage");
+                    if (result == TextToSpeech.ERROR) {
+                        Toast.makeText(this, "朗读失败", Toast.LENGTH_SHORT).show();
+                        Log.e(TAG, "speak returned ERROR");
+                    } else {
+                        Toast.makeText(this, "开始朗读...", Toast.LENGTH_SHORT).show();
+                        Log.d(TAG, "Speaking text length: " + text.length());
+                    }
                 } else {
                     textToSpeech.speak(text, TextToSpeech.QUEUE_FLUSH, null);
+                    Toast.makeText(this, "开始朗读...", Toast.LENGTH_SHORT).show();
                 }
+            } catch (Exception e) {
+                Log.e(TAG, "朗读异常", e);
+                Toast.makeText(this, "朗读出错: " + e.getMessage(), Toast.LENGTH_SHORT).show();
             }
         });
+    }
     }
 
     private void openDownloadFolder() {
