@@ -397,7 +397,8 @@ public class MainActivity extends Activity {
                 if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.LOLLIPOP) {
                     textToSpeech.speak(text, TextToSpeech.QUEUE_FLUSH, null, "ReadPage");
                 } else {
-                    textToSpeech.speak(text, TextToSpeech.QUEUE_FLUSH);
+                    textToSpeech.speak(text, TextToSpeech.QUEUE_FLUSH, null);
+                }
                 }
             }
         });
