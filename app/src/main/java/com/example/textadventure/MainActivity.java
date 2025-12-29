@@ -25,9 +25,8 @@ public class MainActivity extends AppCompatActivity {
 
         // Ensure links open within the WebView
         webView.setWebViewClient(new WebViewClient());
-
-        // Load the HTML file from assets
-        webView.loadUrl("file:///android_asset/index.html");
+        // Load Baidu Homepage
+        webView.loadUrl("https://www.baidu.com");
     }
 
     @Override
