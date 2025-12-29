@@ -1,38 +1,41 @@
 package com.example.textadventure;
 
 import android.os.Bundle;
-import android.view.View;
-import android.widget.Button;
-import android.widget.EditText;
-import android.widget.TextView;
+import android.webkit.WebView;
+import android.webkit.WebSettings;
+import android.webkit.WebViewClient;
 import androidx.appcompat.app.AppCompatActivity;
 
 public class MainActivity extends AppCompatActivity {
-    private TextView gameOutput;
-    private EditText commandInput;
-    private Button submitButton;
-    private GameEngine gameEngine;
+    private WebView webView;
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
         setContentView(R.layout.activity_main);
 
-        gameOutput = findViewById(R.id.game_output);
-        commandInput = findViewById(R.id.command_input);
-        submitButton = findViewById(R.id.submit_button);
+        webView = findViewById(R.id.webview);
 
-        gameEngine = new GameEngine();
-        gameOutput.setText(gameEngine.startGame());
+        // Configure WebView
+        WebSettings webSettings = webView.getSettings();
+        webSettings.setJavaScriptEnabled(true);
+        webSettings.setDomStorageEnabled(true);
+        webSettings.setLoadWithOverviewMode(true);
+        webSettings.setUseWideViewPort(true);
 
-        submitButton.setOnClickListener(new View.OnClickListener() {
-            @Override
-            public void onClick(View v) {
-                String command = commandInput.getText().toString().trim();
-                String result = gameEngine.processCommand(command);
-                gameOutput.setText(gameEngine.getGameState() + "\n\n> " + command + "\n" + result);
-                commandInput.setText("");
-            }
-        });
+        // Ensure links open within the WebView
+        webView.setWebViewClient(new WebViewClient());
+
+        // Load the HTML file from assets
+        webView.loadUrl("file:///android_asset/index.html");
+    }
+
+    @Override
+    public void onBackPressed() {
+        if (webView.canGoBack()) {
+            webView.goBack();
+        } else {
+            super.onBackPressed();
+        }
     }
 }
