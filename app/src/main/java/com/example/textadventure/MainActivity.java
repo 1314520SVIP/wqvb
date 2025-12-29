@@ -22,6 +22,7 @@ import android.widget.Button;
 import android.widget.EditText;
 import android.widget.LinearLayout;
 import android.widget.TextView;
+import android.webkit.DownloadListener;
 
 public class MainActivity extends Activity {
     private WebView webView;
@@ -213,7 +214,6 @@ public class MainActivity extends Activity {
         webSettings.setSupportZoom(true);
         webSettings.setBuiltInZoomControls(true);
         webSettings.setDisplayZoomControls(false);
-
         webView.setWebViewClient(new WebViewClient() {
             @Override
             public void onPageFinished(WebView view, String url) {
@@ -262,6 +262,19 @@ public class MainActivity extends Activity {
                     }
                 }
                 return true;
+            }
+        });
+        // Set Download Listener
+        webView.setDownloadListener(new DownloadListener() {
+            @Override
+            public void onDownloadStart(String url, String userAgent, String contentDisposition, String mimetype, long contentLength) {
+                Intent serviceIntent = new Intent(MainActivity.this, DownloadService.class);
+                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+                    startForegroundService(serviceIntent);
+                } else {
+                    startService(serviceIntent);
+                }
+                Log.d(TAG, "Download started: " + url);
             }
         });
     }
