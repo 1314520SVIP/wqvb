@@ -25,6 +25,8 @@ import android.widget.TextView;
 import android.webkit.DownloadListener;
 import android.speech.tts.TextToSpeech;
 import android.os.Build;
+import java.util.Locale;
+import java.util.HashMap;
 
 public class MainActivity extends Activity {
     private WebView webView;
@@ -388,14 +390,18 @@ public class MainActivity extends Activity {
         });
         builder.show();
     }
-
     private void readPage() {
         webView.evaluateJavascript("(function(){ return document.body.innerText; })();", value -> {
             if (value != null && !value.isEmpty()) {
                 String text = value.replace("\\\"", "\"");
-                textToSpeech.speak(text, TextToSpeech.QUEUE_FLUSH);
+                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.LOLLIPOP) {
+                    textToSpeech.speak(text, TextToSpeech.QUEUE_FLUSH, null, "ReadPage");
+                } else {
+                    textToSpeech.speak(text, TextToSpeech.QUEUE_FLUSH);
+                }
             }
         });
+    }
     }
 
     private void openDownloadFolder() {
