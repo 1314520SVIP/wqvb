@@ -1,0 +1,72 @@
+plugins {
+    id 'com.android.application'
+}
+
+android {
+    namespace 'com.example.textadventure'
+    compileSdk 33
+
+    defaultConfig {
+        applicationId "com.example.textadventure"
+        minSdk 24
+        targetSdk 33
+        versionCode 1
+        versionName "1.0"
+
+        testInstrumentationRunner "androidx.test.runner.AndroidJUnitRunner"
+    }
+
+    buildTypes {
+        release {
+            minifyEnabled false
+            proguardFiles getDefaultProguardFile('proguard-android-optimize.txt'), 'proguard-rules.pro'
+        }
+        debug {
+            debuggable true
+            minifyEnabled false
+        }
+    }
+    compileOptions {
+        sourceCompatibility JavaVersion.VERSION_1_8
+        targetCompatibility JavaVersion.VERSION_1_8
+    }
+    
+    // AAPT2优化配置
+    aaptOptions {
+        cruncherEnabled = false
+        useNewCruncher = false
+        noCompress "tflite"
+        noCompress "lite"
+        ignoreAssetsPattern = "!.svn:!.git:.*:!CVS:!thumbs.db:!picasa.ini:!*.scc:*~"
+        additionalParameters "--no-version-vectors"
+    }
+    
+    // 禁用某些可能引起问题的特性
+    buildFeatures {
+        aidl false
+        buildConfig false
+        renderScript false
+        shaders false
+        // 尝试禁用ViewBinding
+        viewBinding false
+    }
+    
+    // 尝试禁用某些可能冲突的功能
+    packagingOptions {
+        pickFirst '**/libc++_shared.so'
+        pickFirst '**/libjsc.so'
+        pickFirst '**/libjsimagepipeline.so'
+        pickFirst '**/libimagepipeline.so'
+        pickFirst '**/libimagepipeline_native.so'
+        pickFirst '**/libgifimagepipeline.so'
+    }
+}
+
+dependencies {
+    implementation 'androidx.appcompat:appcompat:1.6.1'
+    implementation 'com.google.android.material:material:1.8.0'
+    implementation 'androidx.constraintlayout:constraintlayout:2.1.4'
+    testImplementation 'junit:junit:4.13.2'
+    androidTestImplementation 'androidx.test.ext:junit:1.1.5'
+    androidTestImplementation 'androidx.test.espresso:espresso-core:3.5.1'
+}

@@ -1,0 +1,24 @@
+// Project-wide Gradle settings.
+org.gradle.jvmargs=-Xmx2048m -Dfile.encoding=UTF-8
+
+// Disable Gradle daemon
+org.gradle.daemon=false
+
+// Disable parallel builds
+org.gradle.parallel=false
+
+// Disable build caching
+org.gradle.caching=false
+
+// Configure on demand
+org.gradle.configureondemand=false
+
+// AndroidX package structure
+android.useAndroidX=true
+android.enableJetifier=true
+
+// AAPT2 daemon options
+android.enableAapt2Daemon=false
+android.enableBuildCache=false
+android.enableAppMetadataGeneration=false
+android.enableResourceOptimizations=false

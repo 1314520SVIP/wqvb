@@ -1,0 +1,10 @@
+# Project-wide Gradle settings.
+org.gradle.jvmargs=-Xmx2048m -Dfile.encoding=UTF-8
+android.useAndroidX=true
+android.enableJetifier=true
+# Disable AAPT2 daemon
+android.enableAapt2Daemon=false
+# Disable build cache
+android.enableBuildCache=false
+# Use non-daemon mode for AAPT2
+aapt2FromMavenBuildSdk=false
