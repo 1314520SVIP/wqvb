@@ -23,8 +23,28 @@ public class MainActivity extends AppCompatActivity {
         webSettings.setLoadWithOverviewMode(true);
         webSettings.setUseWideViewPort(true);
 
-        // Ensure links open within the WebView
-        webView.setWebViewClient(new WebViewClient());
+        // Configure WebView Client to handle custom URL schemes
+        webView.setWebViewClient(new WebViewClient() {
+            @Override
+            public boolean shouldOverrideUrlLoading(WebView view, WebResourceRequest request) {
+                String url = request.getUrl().toString();
+                // Block custom schemes like baiduboxapp:// to prevent errors
+                if (!url.startsWith("http://") && !url.startsWith("https://")) {
+                    return true; // Return true to indicate we handled the URL (by ignoring it)
+                }
+                return false; // Let WebView handle standard HTTP/HTTPS URLs
+            }
+
+            @Override
+            public boolean shouldOverrideUrlLoading(WebView view, String url) {
+                // Compatibility for older Android versions
+                if (!url.startsWith("http://") && !url.startsWith("https://")) {
+                    return true;
+                }
+                return false;
+            }
+        });
+
         // Load Baidu Homepage
         webView.loadUrl("https://www.baidu.com");
     }
