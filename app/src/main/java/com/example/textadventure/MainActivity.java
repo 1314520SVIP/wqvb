@@ -27,6 +27,13 @@ import android.speech.tts.TextToSpeech;
 import android.os.Build;
 import java.util.Locale;
 import java.util.HashMap;
+import java.util.Set;
+import java.util.HashSet;
+import android.content.SharedPreferences;
+import android.widget.ListView;
+import android.widget.AdapterView;
+import android.app.ProgressDialog;
+import android.webkit.ValueCallback;
 
 public class MainActivity extends Activity {
     private WebView webView;
@@ -44,6 +51,10 @@ public class MainActivity extends Activity {
     private boolean isToolbarVisible = true;
     private View rootView;
     private boolean shouldOverrideExternalApp = false;
+    // 屏蔽网站功能
+    private Set<String> blockedDomains = new HashSet<>();
+    private static final String PREFS_NAME = "BrowserPrefs";
+    private static final String KEY_BLOCKED_DOMAINS = "blocked_domains";
 
     // User Agents
     private static final String UA_ANDROID_PHONE = "Mozilla/5.0 (Linux; Android 10; SM-G975F) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.120 Mobile Safari/537.36";
@@ -81,12 +92,12 @@ public class MainActivity extends Activity {
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
         setContentView(R.layout.activity_main);
-
         hideSystemUI();
         initViews();
         setupWebView();
         setupKeyboardListener();
         initTTS();
+        loadBlockedDomains();
 
         webView.loadUrl("https://www.baidu.com");
     }
@@ -241,9 +252,14 @@ public class MainActivity extends Activity {
                 super.onPageFinished(view, url);
                 etUrl.setText(url);
             }
-
             @Override
             public boolean shouldOverrideUrlLoading(WebView view, String url) {
+                // 检查屏蔽网站
+                if (isUrlBlocked(url)) {
+                    Toast.makeText(MainActivity.this, "该网站已被屏蔽", Toast.LENGTH_SHORT).show();
+                    return true; // 阻止加载
+                }
+
                 if (url.startsWith("http://") || url.startsWith("https://")) {
                     return false;
                 } else if (url.startsWith("intent://")) {
@@ -377,7 +393,8 @@ public class MainActivity extends Activity {
             "用户代理设置",
             "外部应用跳转: " + (shouldOverrideExternalApp ? "开启" : "关闭"),
             "查看下载文件",
-            "朗读当前页面"
+            "朗读当前页面",
+            "屏蔽网站管理"
         };
         builder.setItems(options, (dialog, which) -> {
             switch (which) {
@@ -386,6 +403,7 @@ public class MainActivity extends Activity {
                 case 2: toggleExternalAppOverride(); break;
                 case 3: openDownloadFolder(); break;
                 case 4: readPage(); break;
+                case 5: showBlockedDomainsDialog(); break;
             }
         });
         builder.show();
@@ -457,6 +475,112 @@ public class MainActivity extends Activity {
     private void toggleExternalAppOverride() {
         shouldOverrideExternalApp = !shouldOverrideExternalApp;
         showSettingsDialog();
+    }
+    // ==================== 屏蔽网站管理功能 ====================
+
+    private boolean isUrlBlocked(String url) {
+        if (url == null || url.isEmpty()) return false;
+        
+        // 提取域名
+        String domain = url;
+        if (domain.startsWith("http://")) domain = domain.substring(7);
+        if (domain.startsWith("https://")) domain = domain.substring(8);
+        int slashIndex = domain.indexOf('/');
+        if (slashIndex > 0) domain = domain.substring(0, slashIndex);
+        
+        // 检查是否在屏蔽列表中
+        return blockedDomains.contains(domain);
+    }
+
+    private void loadBlockedDomains() {
+        SharedPreferences prefs = getSharedPreferences(PREFS_NAME, MODE_PRIVATE);
+        blockedDomains = prefs.getStringSet(KEY_BLOCKED_DOMAINS, new HashSet<>());
+        if (blockedDomains == null) {
+            blockedDomains = new HashSet<>();
+        }
+    }
+
+    private void saveBlockedDomains() {
+        SharedPreferences prefs = getSharedPreferences(PREFS_NAME, MODE_PRIVATE);
+        SharedPreferences.Editor editor = prefs.edit();
+        editor.putStringSet(KEY_BLOCKED_DOMAINS, blockedDomains);
+        editor.apply();
+    }
+
+    private void showBlockedDomainsDialog() {
+        final java.util.List<String> domainList = new java.util.ArrayList<>(blockedDomains);
+        AlertDialog.Builder builder = new AlertDialog.Builder(this);
+        builder.setTitle("屏蔽网站管理");
+
+        if (domainList.isEmpty()) {
+            builder.setMessage("当前没有屏蔽任何网站");
+            builder.setPositiveButton("确定", null);
+            builder.setNeutralButton("添加", (dialog, which) -> showAddBlockedDomainDialog());
+            builder.show();
+            return;
+        }
+
+        builder.setItems(domainList.toArray(new String[0]), (dialog, which) -> {
+            // 点击项可以查看详情或删除，这里简化为长按删除
+        });
+
+        builder.setNegativeButton("返回", null);
+        builder.setNeutralButton("添加", (dialog, which) -> showAddBlockedDomainDialog());
+        
+        final AlertDialog dialog = builder.create();
+        dialog.setOnShowListener(d -> {
+            ListView listView = dialog.getListView();
+            listView.setOnItemLongClickListener((parent, view, position, id) -> {
+                final String domain = domainList.get(position);
+                new AlertDialog.Builder(MainActivity.this)
+                    .setTitle("确认删除")
+                    .setMessage("确定要取消屏蔽 " + domain + " 吗？")
+                    .setPositiveButton("确定", (d, w) -> {
+                        blockedDomains.remove(domain);
+                        saveBlockedDomains();
+                        Toast.makeText(MainActivity.this, "已取消屏蔽: " + domain, Toast.LENGTH_SHORT).show();
+                        showBlockedDomainsDialog();
+                    })
+                    .setNegativeButton("取消", null)
+                    .show();
+                return true;
+            });
+        });
+        dialog.show();
+    }
+
+    private void showAddBlockedDomainDialog() {
+        AlertDialog.Builder builder = new AlertDialog.Builder(this);
+        builder.setTitle("添加屏蔽网站");
+        
+        final EditText input = new EditText(this);
+        input.setHint("请输入域名，例如: example.com");
+        builder.setView(input);
+        
+        builder.setPositiveButton("添加", (dialog, which) -> {
+            String domain = input.getText().toString().trim();
+            if (!TextUtils.isEmpty(domain)) {
+                // 简单的域名处理
+                if (domain.startsWith("http://")) domain = domain.substring(7);
+                if (domain.startsWith("https://")) domain = domain.substring(8);
+                int slashIndex = domain.indexOf('/');
+                if (slashIndex > 0) domain = domain.substring(0, slashIndex);
+                
+                if (!blockedDomains.contains(domain)) {
+                    blockedDomains.add(domain);
+                    saveBlockedDomains();
+                    Toast.makeText(MainActivity.this, "已添加屏蔽: " + domain, Toast.LENGTH_SHORT).show();
+                    showBlockedDomainsDialog();
+                } else {
+                    Toast.makeText(MainActivity.this, "该域名已在屏蔽列表中", Toast.LENGTH_SHORT).show();
+                }
+            } else {
+                Toast.makeText(MainActivity.this, "请输入有效的域名", Toast.LENGTH_SHORT).show();
+            }
+        });
+        
+        builder.setNegativeButton("取消", null);
+        builder.show();
     }
 
     @Override
