@@ -274,78 +274,132 @@ public class MainActivity extends Activity {
     }
     private void initTTS() {
         try {
+            Log.d(TAG, "开始初始化TTS引擎...");
             textToSpeech = new TextToSpeech(this, new TextToSpeech.OnInitListener() {
                 @Override
                 public void onInit(int status) {
+                    Log.d(TAG, "TTS onInit回调，状态: " + status);
+                    
                     if (status == TextToSpeech.SUCCESS) {
-                        Log.d(TAG, "TTS引擎初始化成功，正在设置语言...");
+                        Log.d(TAG, "TTS引擎初始化成功");
                         
-                        // 设置语言
-                        int langResult = textToSpeech.setLanguage(Locale.CHINA);
-                        if (langResult == TextToSpeech.LANG_MISSING_DATA || langResult == TextToSpeech.LANG_NOT_SUPPORTED) {
-                            Log.w(TAG, "中文不支持，尝试默认语言");
-                            langResult = textToSpeech.setLanguage(Locale.getDefault());
+                        // 尝试多种语言设置，增加兼容性
+                        int langResult = TextToSpeech.LANG_NOT_SUPPORTED;
+                        Locale finalLocale = null;
+                        
+                        // 尝试简体中文
+                        Locale china = Locale.SIMPLIFIED_CHINESE;
+                        langResult = textToSpeech.setLanguage(china);
+                        Log.d(TAG, "设置简体中文，结果: " + langResult);
+                        if (langResult != TextToSpeech.LANG_MISSING_DATA && langResult != TextToSpeech.LANG_NOT_SUPPORTED) {
+                            finalLocale = china;
                         }
                         
-                        if (langResult == TextToSpeech.LANG_MISSING_DATA || langResult == TextToSpeech.LANG_NOT_SUPPORTED) {
-                            Log.e(TAG, "TTS语言不支持");
+                        // 如果简体中文不支持，尝试Locale.CHINA
+                        if (finalLocale == null) {
+                            Locale chinaDefault = Locale.CHINA;
+                            langResult = textToSpeech.setLanguage(chinaDefault);
+                            Log.d(TAG, "设置Locale.CHINA，结果: " + langResult);
+                            if (langResult != TextToSpeech.LANG_MISSING_DATA && langResult != TextToSpeech.LANG_NOT_SUPPORTED) {
+                                finalLocale = chinaDefault;
+                            }
+                        }
+                        
+                        // 如果都不支持，尝试系统默认语言
+                        if (finalLocale == null) {
+                            Locale defaultLocale = Locale.getDefault();
+                            langResult = textToSpeech.setLanguage(defaultLocale);
+                            Log.d(TAG, "设置默认语言 " + defaultLocale + "，结果: " + langResult);
+                            if (langResult != TextToSpeech.LANG_MISSING_DATA && langResult != TextToSpeech.LANG_NOT_SUPPORTED) {
+                                finalLocale = defaultLocale;
+                            }
+                        }
+                        
+                        // 如果还是不支持，尝试英语
+                        if (finalLocale == null) {
+                            Locale english = Locale.US;
+                            langResult = textToSpeech.setLanguage(english);
+                            Log.d(TAG, "设置英语，结果: " + langResult);
+                            if (langResult != TextToSpeech.LANG_MISSING_DATA && langResult != TextToSpeech.LANG_NOT_SUPPORTED) {
+                                finalLocale = english;
+                            }
+                        }
+                        
+                        // 检查最终语言设置结果
+                        if (finalLocale != null) {
+                            Log.d(TAG, "TTS语言设置成功: " + finalLocale);
+                            
+                            // 设置语速和音调
+                            textToSpeech.setSpeechRate(currentSpeechRate);
+                            textToSpeech.setPitch(currentPitch);
+                            Log.d(TAG, "语速: " + currentSpeechRate + ", 音调: " + currentPitch);
+                            
+                            // 获取TTS引擎信息
+                            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.LOLLIPOP) {
+                                String defaultEngine = textToSpeech.getDefaultEngine();
+                                Log.d(TAG, "TTS引擎: " + defaultEngine);
+                            }
+                            
+                            // 设置朗读完成监听器，实现自动播放下一句
+                            textToSpeech.setOnUtteranceProgressListener(new android.speech.tts.UtteranceProgressListener() {
+                                @Override
+                                public void onStart(String utteranceId) {
+                                    Log.d(TAG, "开始朗读: " + utteranceId);
+                                    try {
+                                        currentTextIndex = Integer.parseInt(utteranceId.replace("sentence_", ""));
+                                        highlightCurrentSentence();
+                                    } catch (NumberFormatException e) {
+                                        // Ignore
+                                    }
+                                }
+
+                                @Override
+                                public void onDone(String utteranceId) {
+                                    Log.d(TAG, "朗读完成: " + utteranceId);
+                                    // 播放下一句
+                                    currentTextIndex++;
+                                    if (currentTextIndex < extractedTexts.size()) {
+                                        speakCurrentSentence();
+                                    } else {
+                                        isPlaying = false;
+                                        isTTSActive = false;
+                                        abandonAudioFocus(); // 朗读结束，放弃音频焦点
+                                        runOnUiThread(() -> Toast.makeText(MainActivity.this, "朗读结束", Toast.LENGTH_SHORT).show());
+                                    }
+                                }
+
+                                @Override
+                                public void onError(String utteranceId) {
+                                    Log.e(TAG, "朗读错误: " + utteranceId);
+                                }
+                            });
+                            
+                            ttsInitialized = true;
+                            Log.d(TAG, "TTS完全初始化完成");
+                            runOnUiThread(() -> Toast.makeText(MainActivity.this, "TTS初始化成功", Toast.LENGTH_SHORT).show());
+                        } else {
+                            Log.e(TAG, "TTS语言完全不支持");
                             ttsInitialized = false;
-                            return;
+                            runOnUiThread(() -> Toast.makeText(MainActivity.this, "系统TTS语言不支持，请检查系统设置", Toast.LENGTH_LONG).show());
                         }
-                        
-                        // 设置语速和音调
-                        textToSpeech.setSpeechRate(currentSpeechRate);
-                        textToSpeech.setPitch(currentPitch);
-                        
-                        // 设置朗读完成监听器，实现自动播放下一句
-                        textToSpeech.setOnUtteranceProgressListener(new android.speech.tts.UtteranceProgressListener() {
-                            @Override
-                            public void onStart(String utteranceId) {
-                                Log.d(TAG, "开始朗读: " + utteranceId);
-                                try {
-                                    currentTextIndex = Integer.parseInt(utteranceId.replace("sentence_", ""));
-                                    highlightCurrentSentence();
-                                } catch (NumberFormatException e) {
-                                    // Ignore
-                                }
-                            }
-
-                            @Override
-                            public void onDone(String utteranceId) {
-                                Log.d(TAG, "朗读完成: " + utteranceId);
-                                // 播放下一句
-                                currentTextIndex++;
-                                if (currentTextIndex < extractedTexts.size()) {
-                                    speakCurrentSentence();
-                                } else {
-                                    isPlaying = false;
-                                    isTTSActive = false;
-                                    abandonAudioFocus(); // 朗读结束，放弃音频焦点
-                                    runOnUiThread(() -> Toast.makeText(MainActivity.this, "朗读结束", Toast.LENGTH_SHORT).show());
-                                }
-                            }
-
-                            @Override
-                            public void onError(String utteranceId) {
-                                Log.e(TAG, "朗读错误: " + utteranceId);
-                            }
-                        });
-                        
-                        ttsInitialized = true;
-                        Log.d(TAG, "TTS完全初始化完成");
-                        
-                        // 测试朗读（可选）
-                        testTTS();
                     } else {
-                        Log.e(TAG, "TTS初始化失败: " + status);
+                        Log.e(TAG, "TTS初始化失败，状态码: " + status);
                         ttsInitialized = false;
-                        runOnUiThread(() -> Toast.makeText(MainActivity.this, "TTS初始化失败", Toast.LENGTH_SHORT).show());
+                        String errorMsg = "TTS初始化失败";
+                        if (status == TextToSpeech.ERROR) {
+                            errorMsg = "系统TTS服务不可用";
+                        } else if (status == TextToSpeech.LANG_MISSING_DATA) {
+                            errorMsg = "缺少TTS语言数据，请在系统设置中下载";
+                        }
+                        runOnUiThread(() -> Toast.makeText(MainActivity.this, errorMsg, Toast.LENGTH_LONG).show());
                     }
                 }
             });
         } catch (Exception e) {
             Log.e(TAG, "TTS初始化异常", e);
+            e.printStackTrace();
             ttsInitialized = false;
+            runOnUiThread(() -> Toast.makeText(MainActivity.this, "TTS初始化异常: " + e.getMessage(), Toast.LENGTH_LONG).show());
         }
     }
     
