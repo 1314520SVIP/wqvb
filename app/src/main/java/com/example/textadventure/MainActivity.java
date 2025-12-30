@@ -465,13 +465,6 @@ public class MainActivity extends Activity {
                         runOnUiThread(() -> {
                             Toast.makeText(MainActivity.this, "TTS初始化超时\n\n可能原因:\n1. 系统TTS服务未响应\n2. 设备性能不足\n3. 系统限制\n\n建议重启应用", Toast.LENGTH_LONG).show();
                             addLog("提示: TTS初始化超时\n\n可能原因:\n1. 系统TTS服务未响应\n2. 设备性能不足\n3. 系统限制\n\n建议重启应用");
-
-可能原因:
-1. 系统TTS服务未响应
-2. 设备性能不足
-3. 系统限制
-
-建议重启应用");
                         });
                     }
                 }
