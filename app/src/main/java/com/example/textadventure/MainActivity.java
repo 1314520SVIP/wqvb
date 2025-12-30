@@ -280,16 +280,18 @@ public class MainActivity extends Activity {
             Log.d(TAG, "========== 开始初始化TTS引擎 ==========");
             Log.d(TAG, "系统版本: " + Build.VERSION.RELEASE + " (API " + Build.VERSION.SDK_INT + ")");
             Log.d(TAG, "设备厂商: " + Build.MANUFACTURER + ", 型号: " + Build.MODEL);
-            
-            // 检查TTS服务是否可用
+            // 检查TTS服务是否可用（使用字符串常量以避免编译错误）
             android.content.pm.PackageManager pm = getPackageManager();
-            if (!pm.hasSystemFeature(android.content.pm.PackageManager.FEATURE_TEXT_TO_SPEECH)) {
-                Log.e(TAG, "设备不支持TTS功能");
-                ttsInitialized = false;
-                runOnUiThread(() -> Toast.makeText(MainActivity.this, "设备不支持TTS功能", Toast.LENGTH_LONG).show());
-                return;
+            try {
+                if (!pm.hasSystemFeature("android.software.text_to_speech")) {
+                    Log.w(TAG, "设备可能不支持TTS功能");
+                    // 不直接返回，尝试继续初始化，让TTS引擎自己判断
+                } else {
+                    Log.d(TAG, "设备支持TTS功能");
+                }
+            } catch (Exception e) {
+                Log.w(TAG, "TTS功能检查失败，继续尝试初始化: " + e.getMessage());
             }
-            Log.d(TAG, "设备支持TTS功能");
             
             // 创建TTS对象
             textToSpeech = new TextToSpeech(this, new TextToSpeech.OnInitListener() {
