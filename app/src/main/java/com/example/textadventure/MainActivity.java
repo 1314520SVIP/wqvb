@@ -1307,7 +1307,7 @@ public class MainActivity extends Activity {
                         speakCurrentSentence();
                         
                         Toast.makeText(MainActivity.this, "开始朗读，共 " + extractedTexts.size() + " 句", Toast.LENGTH_SHORT).show();
-                        addLog("提示: 开始朗读，共 " + sentences.size() + " 句");
+                        addLog("提示: 开始朗读，共 " + sentences.length + " 句");
                         Log.d(TAG, "提取到 " + extractedTexts.size() + " 句，开始朗读");
                     } catch (Exception e) {
                         Log.e(TAG, "朗读异常", e);
