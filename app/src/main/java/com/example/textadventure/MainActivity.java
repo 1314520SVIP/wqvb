@@ -464,7 +464,7 @@ public class MainActivity extends Activity {
                         Log.e(TAG, "textToSpeech对象: " + (textToSpeech != null ? "存在" : "为空"));
                         runOnUiThread(() -> {
                             Toast.makeText(MainActivity.this, "TTS初始化超时\n\n可能原因:\n1. 系统TTS服务未响应\n2. 设备性能不足\n3. 系统限制\n\n建议重启应用", Toast.LENGTH_LONG).show();
-                            addLog("提示: TTS初始化超时
+                            addLog("提示: TTS初始化超时\n\n可能原因:\n1. 系统TTS服务未响应\n2. 设备性能不足\n3. 系统限制\n\n建议重启应用");
 
 可能原因:
 1. 系统TTS服务未响应
@@ -1113,8 +1113,7 @@ public class MainActivity extends Activity {
             addLog("========== 日志已保存到: " + logFile.getAbsolutePath() + " ==========");
             
             Toast.makeText(this, "日志已保存到:\n" + logFile.getAbsolutePath(), Toast.LENGTH_LONG).show();
-            addLog("提示: 日志已保存到:
-");
+            addLog("提示: 日志已保存到:\n" + logFile.getAbsolutePath());
         } catch (Exception e) {
             addLog("保存日志失败: " + e.getMessage());
             Toast.makeText(this, "保存日志失败: " + e.getMessage(), Toast.LENGTH_LONG).show();
