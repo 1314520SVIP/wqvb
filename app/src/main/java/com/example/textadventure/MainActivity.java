@@ -299,7 +299,6 @@ public class MainActivity extends Activity {
             Log.d(TAG, "========== 开始初始化TTS引擎 ==========");
             Log.d(TAG, "系统版本: " + Build.VERSION.RELEASE + " (API " + Build.VERSION.SDK_INT + ")");
             Log.d(TAG, "设备厂商: " + Build.MANUFACTURER + ", 型号: " + Build.MODEL);
-            
             // 检查TTS服务是否可用（使用字符串常量以避免编译错误）
             android.content.pm.PackageManager pm = getPackageManager();
             try {
@@ -310,6 +309,8 @@ public class MainActivity extends Activity {
                 }
             } catch (Exception e) {
                 Log.w(TAG, "TTS功能检查失败，继续尝试初始化: " + e.getMessage());
+            }
+            
             // 创建TTS对象 - 支持指定引擎
             TextToSpeech.OnInitListener initListener = new TextToSpeech.OnInitListener() {
                 @Override
