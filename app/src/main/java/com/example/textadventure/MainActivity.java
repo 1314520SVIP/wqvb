@@ -99,10 +99,15 @@ public class MainActivity extends Activity {
     // 新增：TTS 参数
     private float currentSpeechRate = 0.9f;
     private float currentPitch = 1.0f;
-    
     // 新增：TTS引擎选择
     private String currentTTSEngine = ""; // 当前选择的TTS引擎包名
     private static final String PREF_TTS_ENGINE = "tts_engine";
+    
+    // 新增：日志管理功能
+    private boolean debugLogEnabled = false;
+    private static final String PREF_DEBUG_LOG = "debug_log_enabled";
+    private StringBuilder logBuffer = new StringBuilder();
+    private static final int MAX_LOG_BUFFER_SIZE = 50000; // 50KB日志缓冲
     
     // 新增：广播接收器
     private BroadcastReceiver ttsControlReceiver;
@@ -787,6 +792,10 @@ public class MainActivity extends Activity {
         AlertDialog.Builder builder = new AlertDialog.Builder(this);
         builder.setTitle("设置");
         
+        // 加载调试日志开关状态
+        SharedPreferences prefs = getSharedPreferences(PREFS_NAME, MODE_PRIVATE);
+        debugLogEnabled = prefs.getBoolean(PREF_DEBUG_LOG, false);
+        
         String[] options = {
             "搜索设置",
             "用户代理设置",
@@ -794,7 +803,9 @@ public class MainActivity extends Activity {
             "查看下载文件",
             "语音引擎设置",
             "朗读当前页面",
-            "屏蔽网站管理"
+            "屏蔽网站管理",
+            "调试日志: " + (debugLogEnabled ? "开启" : "关闭"),
+            "查看日志"
         };
         builder.setItems(options, (dialog, which) -> {
             switch (which) {
@@ -805,6 +816,8 @@ public class MainActivity extends Activity {
                 case 4: showTTSEngineDialog(); break;
                 case 5: readPage(); break;
                 case 6: showBlockedDomainsDialog(); break;
+                case 7: toggleDebugLog(); break;
+                case 8: showLogDialog(); break;
             }
         });
         builder.show();
@@ -959,6 +972,168 @@ public class MainActivity extends Activity {
         
         builder.setNegativeButton("取消", null);
         builder.show();
+    }
+    
+    /**
+     * 切换调试日志开关
+     */
+    private void toggleDebugLog() {
+        debugLogEnabled = !debugLogEnabled;
+        SharedPreferences prefs = getSharedPreferences(PREFS_NAME, MODE_PRIVATE);
+        prefs.edit().putBoolean(PREF_DEBUG_LOG, debugLogEnabled).apply();
+        
+        String status = debugLogEnabled ? "开启" : "关闭";
+        Toast.makeText(this, "调试日志已" + status, Toast.LENGTH_SHORT).show();
+        
+        if (debugLogEnabled) {
+            addLog("========== 调试日志已开启 ==========");
+            addLog("系统版本: " + Build.VERSION.RELEASE + " (API " + Build.VERSION.SDK_INT + ")");
+            addLog("设备厂商: " + Build.MANUFACTURER + ", 型号: " + Build.MODEL);
+        } else {
+            addLog("========== 调试日志已关闭 ==========");
+        }
+    }
+    
+    /**
+     * 显示日志管理对话框
+     */
+    private void showLogDialog() {
+        AlertDialog.Builder builder = new AlertDialog.Builder(this);
+        builder.setTitle("日志管理");
+        
+        String[] options = {
+            "查看日志",
+            "复制日志",
+            "保存日志到本地",
+            "清除日志"
+        };
+        
+        builder.setItems(options, (dialog, which) -> {
+            switch (which) {
+                case 0: showLogContentDialog(); break;
+                case 1: copyLogToClipboard(); break;
+                case 2: saveLogToFile(); break;
+                case 3: clearLog(); break;
+            }
+        });
+        builder.show();
+    }
+    
+    /**
+     * 显示日志内容对话框
+     */
+    private void showLogContentDialog() {
+        AlertDialog.Builder builder = new AlertDialog.Builder(this);
+        builder.setTitle("应用日志");
+        
+        ScrollView scrollView = new ScrollView(this);
+        TextView logView = new TextView(this);
+        logView.setTextSize(12);
+        logView.setPadding(20, 20, 20, 20);
+        logView.setTypeface(android.graphics.Typeface.MONOSPACE);
+        
+        String logContent = logBuffer.length() > 0 ? logBuffer.toString() : "暂无日志记录";
+        logView.setText(logContent);
+        
+        scrollView.addView(logView);
+        builder.setView(scrollView);
+        
+        builder.setPositiveButton("复制", (dialog, which) -> copyLogToClipboard());
+        builder.setNegativeButton("关闭", null);
+        builder.show();
+    }
+    
+    /**
+     * 复制日志到剪贴板
+     */
+    private void copyLogToClipboard() {
+        if (logBuffer.length() == 0) {
+            Toast.makeText(this, "没有日志可复制", Toast.LENGTH_SHORT).show();
+            return;
+        }
+        
+        android.content.ClipboardManager clipboard = (android.content.ClipboardManager) getSystemService(CLIPBOARD_SERVICE);
+        android.content.ClipData clip = android.content.ClipData.newPlainText("应用日志", logBuffer.toString());
+        clipboard.setPrimaryClip(clip);
+        
+        Toast.makeText(this, "日志已复制到剪贴板", Toast.LENGTH_SHORT).show();
+        addLog("========== 日志已复制到剪贴板 ==========");
+    }
+    
+    /**
+     * 保存日志到本地文件
+     */
+    private void saveLogToFile() {
+        if (logBuffer.length() == 0) {
+            Toast.makeText(this, "没有日志可保存", Toast.LENGTH_SHORT).show();
+            return;
+        }
+        
+        try {
+            // 生成文件名：app_log_时间戳.txt
+            String timestamp = new java.text.SimpleDateFormat("yyyyMMdd_HHmmss", java.util.Locale.US).format(new java.util.Date());
+            String fileName = "app_log_" + timestamp + ".txt";
+            
+            // 获取下载目录
+            java.io.File downloadDir = android.os.Environment.getExternalStoragePublicDirectory(android.os.Environment.DIRECTORY_DOWNLOADS);
+            java.io.File logFile = new java.io.File(downloadDir, fileName);
+            
+            // 写入日志
+            java.io.FileWriter writer = new java.io.FileWriter(logFile);
+            writer.write(logBuffer.toString());
+            writer.close();
+            
+            // 通知系统扫描文件
+            addLog("========== 日志已保存到: " + logFile.getAbsolutePath() + " ==========");
+            
+            Toast.makeText(this, "日志已保存到:\n" + logFile.getAbsolutePath(), Toast.LENGTH_LONG).show();
+        } catch (Exception e) {
+            addLog("保存日志失败: " + e.getMessage());
+            Toast.makeText(this, "保存日志失败: " + e.getMessage(), Toast.LENGTH_LONG).show();
+        }
+    }
+    
+    /**
+     * 清除日志
+     */
+    private void clearLog() {
+        new AlertDialog.Builder(this)
+            .setTitle("清除日志")
+            .setMessage("确定要清除所有日志吗？")
+            .setPositiveButton("确定", (dialog, which) -> {
+                logBuffer = new StringBuilder();
+                addLog("========== 日志已清除 ==========");
+                Toast.makeText(this, "日志已清除", Toast.LENGTH_SHORT).show();
+            })
+            .setNegativeButton("取消", null)
+            .show();
+    }
+    
+    /**
+     * 添加日志到缓冲区
+     */
+    private void addLog(String message) {
+        if (!debugLogEnabled && logBuffer.length() == 0) {
+            return; // 如果日志未开启且缓冲区为空，不记录
+        }
+        
+        String timestamp = new java.text.SimpleDateFormat("yyyy-MM-dd HH:mm:ss.SSS", java.util.Locale.US).format(new java.util.Date());
+        String logEntry = "[" + timestamp + "] " + message + "\n";
+        
+        logBuffer.append(logEntry);
+        
+        // 控制缓冲区大小
+        if (logBuffer.length() > MAX_LOG_BUFFER_SIZE) {
+            int excess = logBuffer.length() - MAX_LOG_BUFFER_SIZE;
+            logBuffer.delete(0, excess);
+        }
+        
+        // 同时输出到Logcat
+        if (message.contains("==========")) {
+            Log.d(TAG, message);
+        } else {
+            Log.d(TAG, message);
+        }
     }
     
     /**
