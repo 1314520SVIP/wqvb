@@ -49,6 +49,9 @@ import android.app.NotificationManager;
 import android.app.PendingIntent;
 import android.os.PowerManager;
 import android.content.ComponentName;
+import android.media.AudioManager;
+import android.content.res.Configuration;
+import java.util.Arrays;
 
 public class MainActivity extends Activity {
     private WebView webView;
@@ -70,12 +73,12 @@ public class MainActivity extends Activity {
     private Set<String> blockedDomains = new HashSet<>();
     private static final String PREFS_NAME = "BrowserPrefs";
     private static final String KEY_BLOCKED_DOMAINS = "blocked_domains";
-    
     // TTS 相关增强变量
     private List<String> extractedTexts = new ArrayList<>();
     private int currentTextIndex = -1;
     private boolean isTTSActive = false;
     private boolean isPlaying = false;
+    private boolean ttsInitialized = false;
     
     // 新增：TTS 控制界面
     private FrameLayout ttsControlLayout;
@@ -97,13 +100,45 @@ public class MainActivity extends Activity {
     // 新增：TTS 参数
     private float currentSpeechRate = 0.9f;
     private float currentPitch = 1.0f;
-    
     // 新增：广播接收器
     private BroadcastReceiver ttsControlReceiver;
     private static final String ACTION_TTS_PLAY_PAUSE = "com.example.textadventure.ACTION_TTS_PLAY_PAUSE";
     private static final String ACTION_TTS_PREVIOUS = "com.example.textadventure.ACTION_TTS_PREVIOUS";
     private static final String ACTION_TTS_NEXT = "com.example.textadventure.ACTION_TTS_NEXT";
     private static final String ACTION_TTS_STOP = "com.example.textadventure.ACTION_TTS_STOP";
+    
+    // 音频焦点管理
+    private AudioManager audioManager;
+    private boolean hasAudioFocus = false;
+    private AudioManager.OnAudioFocusChangeListener audioFocusChangeListener = new AudioManager.OnAudioFocusChangeListener() {
+        @Override
+        public void onAudioFocusChange(int focusChange) {
+            switch (focusChange) {
+                case AudioManager.AUDIOFOCUS_GAIN:
+                    // 获得音频焦点，恢复朗读
+                    if (isPlaying) {
+                        resumeTextToSpeech();
+                    }
+                    break;
+                case AudioManager.AUDIOFOCUS_LOSS:
+                    // 永久失去音频焦点，停止朗读
+                    stopTextToSpeech();
+                    break;
+                case AudioManager.AUDIOFOCUS_LOSS_TRANSIENT:
+                    // 暂时失去音频焦点，暂停朗读
+                    if (isPlaying) {
+                        pauseTextToSpeech();
+                    }
+                    break;
+                case AudioManager.AUDIOFOCUS_LOSS_TRANSIENT_CAN_DUCK:
+                    // 暂时失去音频焦点，可以降低音量（此处选择暂停）
+                    if (isPlaying) {
+                        pauseTextToSpeech();
+                    }
+                    break;
+            }
+        }
+    };
 
     // User Agents
     private static final String UA_ANDROID_PHONE = "Mozilla/5.0 (Linux; Android 10; SM-G975F) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.120 Mobile Safari/537.36";
@@ -145,6 +180,7 @@ public class MainActivity extends Activity {
         initViews();
         setupWebView();
         setupKeyboardListener();
+        initAudioManager();
         initTTS();
         
         // 初始化通知管理器（增加空值检查）
@@ -172,8 +208,69 @@ public class MainActivity extends Activity {
         }
         
         loadBlockedDomains();
-
         webView.loadUrl("https://www.baidu.com");
+    }
+    
+    /**
+     * 初始化音频管理器
+     */
+    private void initAudioManager() {
+        try {
+            audioManager = (AudioManager) getSystemService(Context.AUDIO_SERVICE);
+            if (audioManager == null) {
+                Log.e(TAG, "无法获取AudioManager");
+            }
+        } catch (Exception e) {
+            Log.e(TAG, "初始化AudioManager失败", e);
+        }
+    }
+    
+    /**
+     * 请求音频焦点
+     */
+    private boolean requestAudioFocus() {
+        if (audioManager == null) {
+            return false;
+        }
+        
+        if (hasAudioFocus) {
+            return true; // 已经拥有焦点
+        }
+        
+        int result;
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+            result = audioManager.requestAudioFocus(
+                audioFocusChangeListener,
+                AudioManager.STREAM_MUSIC,
+                AudioManager.AUDIOFOCUS_GAIN_TRANSIENT_MAY_DUCK
+            );
+        } else {
+            result = audioManager.requestAudioFocus(
+                audioFocusChangeListener,
+                AudioManager.STREAM_MUSIC,
+                AudioManager.AUDIOFOCUS_GAIN_TRANSIENT
+            );
+        }
+        
+        if (result == AudioManager.AUDIOFOCUS_REQUEST_GRANTED) {
+            hasAudioFocus = true;
+            Log.d(TAG, "音频焦点请求成功");
+            return true;
+        } else {
+            Log.w(TAG, "音频焦点请求失败");
+            return false;
+        }
+    }
+    
+    /**
+     * 放弃音频焦点
+     */
+    private void abandonAudioFocus() {
+        if (audioManager != null && hasAudioFocus) {
+            audioManager.abandonAudioFocus(audioFocusChangeListener);
+            hasAudioFocus = false;
+            Log.d(TAG, "已放弃音频焦点");
+        }
     }
     private void initTTS() {
         try {
@@ -181,61 +278,96 @@ public class MainActivity extends Activity {
                 @Override
                 public void onInit(int status) {
                     if (status == TextToSpeech.SUCCESS) {
-                        // 尝试设置中文，如果失败则尝试默认语言
-                        int result = textToSpeech.setLanguage(Locale.CHINA);
-                        if (result == TextToSpeech.LANG_MISSING_DATA || result == TextToSpeech.LANG_NOT_SUPPORTED) {
+                        Log.d(TAG, "TTS引擎初始化成功，正在设置语言...");
+                        
+                        // 设置语言
+                        int langResult = textToSpeech.setLanguage(Locale.CHINA);
+                        if (langResult == TextToSpeech.LANG_MISSING_DATA || langResult == TextToSpeech.LANG_NOT_SUPPORTED) {
                             Log.w(TAG, "中文不支持，尝试默认语言");
-                            result = textToSpeech.setLanguage(Locale.getDefault());
+                            langResult = textToSpeech.setLanguage(Locale.getDefault());
                         }
-                        if (result == TextToSpeech.LANG_MISSING_DATA || result == TextToSpeech.LANG_NOT_SUPPORTED) {
+                        
+                        if (langResult == TextToSpeech.LANG_MISSING_DATA || langResult == TextToSpeech.LANG_NOT_SUPPORTED) {
                             Log.e(TAG, "TTS语言不支持");
-                        } else {
-                            Log.d(TAG, "TTS初始化成功");
-                            // 设置语速
-                            textToSpeech.setSpeechRate(currentSpeechRate);
-                            textToSpeech.setPitch(currentPitch);
-                            
-                            // 设置朗读完成监听器，实现自动播放下一句
-                            textToSpeech.setOnUtteranceProgressListener(new android.speech.tts.UtteranceProgressListener() {
-                                @Override
-                                public void onStart(String utteranceId) {
-                                    Log.d(TAG, "开始朗读: " + utteranceId);
-                                    // 提取索引
-                                    try {
-                                        currentTextIndex = Integer.parseInt(utteranceId.replace("sentence_", ""));
-                                        highlightCurrentSentence();
-                                    } catch (NumberFormatException e) {
-                                        // Ignore
-                                    }
-                                }
-
-                                @Override
-                                public void onDone(String utteranceId) {
-                                    Log.d(TAG, "朗读完成: " + utteranceId);
-                                    // 播放下一句
-                                    currentTextIndex++;
-                                    if (currentTextIndex < extractedTexts.size()) {
-                                        speakCurrentSentence();
-                                    } else {
-                                        isPlaying = false;
-                                        isTTSActive = false;
-                                        Toast.makeText(MainActivity.this, "朗读结束", Toast.LENGTH_SHORT).show();
-                                    }
-                                }
-
-                                @Override
-                                public void onError(String utteranceId) {
-                                    Log.e(TAG, "朗读错误: " + utteranceId);
-                                }
-                            });
+                            ttsInitialized = false;
+                            return;
                         }
+                        
+                        // 设置语速和音调
+                        textToSpeech.setSpeechRate(currentSpeechRate);
+                        textToSpeech.setPitch(currentPitch);
+                        
+                        // 设置朗读完成监听器，实现自动播放下一句
+                        textToSpeech.setOnUtteranceProgressListener(new android.speech.tts.UtteranceProgressListener() {
+                            @Override
+                            public void onStart(String utteranceId) {
+                                Log.d(TAG, "开始朗读: " + utteranceId);
+                                try {
+                                    currentTextIndex = Integer.parseInt(utteranceId.replace("sentence_", ""));
+                                    highlightCurrentSentence();
+                                } catch (NumberFormatException e) {
+                                    // Ignore
+                                }
+                            }
+
+                            @Override
+                            public void onDone(String utteranceId) {
+                                Log.d(TAG, "朗读完成: " + utteranceId);
+                                // 播放下一句
+                                currentTextIndex++;
+                                if (currentTextIndex < extractedTexts.size()) {
+                                    speakCurrentSentence();
+                                } else {
+                                    isPlaying = false;
+                                    isTTSActive = false;
+                                    abandonAudioFocus(); // 朗读结束，放弃音频焦点
+                                    runOnUiThread(() -> Toast.makeText(MainActivity.this, "朗读结束", Toast.LENGTH_SHORT).show());
+                                }
+                            }
+
+                            @Override
+                            public void onError(String utteranceId) {
+                                Log.e(TAG, "朗读错误: " + utteranceId);
+                            }
+                        });
+                        
+                        ttsInitialized = true;
+                        Log.d(TAG, "TTS完全初始化完成");
+                        
+                        // 测试朗读（可选）
+                        testTTS();
                     } else {
                         Log.e(TAG, "TTS初始化失败: " + status);
+                        ttsInitialized = false;
+                        runOnUiThread(() -> Toast.makeText(MainActivity.this, "TTS初始化失败", Toast.LENGTH_SHORT).show());
                     }
                 }
             });
         } catch (Exception e) {
             Log.e(TAG, "TTS初始化异常", e);
+            ttsInitialized = false;
+        }
+    }
+    
+    /**
+     * 测试TTS是否工作
+     */
+    private void testTTS() {
+        if (ttsInitialized && textToSpeech != null) {
+            new Handler().postDelayed(() -> {
+                try {
+                    if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.LOLLIPOP) {
+                        textToSpeech.speak("TTS测试", TextToSpeech.QUEUE_FLUSH, null, "test");
+                    } else {
+                        HashMap<String, String> params = new HashMap<>();
+                        params.put(TextToSpeech.Engine.KEY_PARAM_UTTERANCE_ID, "test");
+                        textToSpeech.speak("TTS测试", TextToSpeech.QUEUE_FLUSH, params);
+                    }
+                    Log.d(TAG, "TTS测试已执行");
+                } catch (Exception e) {
+                    Log.e(TAG, "TTS测试失败", e);
+                }
+            }, 1000);
         }
     }
 
@@ -529,11 +661,25 @@ public class MainActivity extends Activity {
         });
         builder.show();
     }
+    /**
+     * 读取当前页面并朗读（修复版）
+     */
     private void readPage() {
-        if (textToSpeech == null) {
+        // 检查TTS是否已初始化
+        if (!ttsInitialized || textToSpeech == null) {
             Toast.makeText(this, "TTS引擎未初始化，请稍后再试", Toast.LENGTH_SHORT).show();
-            Log.e(TAG, "readPage: textToSpeech is null");
+            Log.e(TAG, "readPage: TTS未初始化");
             return;
+        }
+
+        // 检查音频流是否被静音
+        if (audioManager != null) {
+            int currentVolume = audioManager.getStreamVolume(AudioManager.STREAM_MUSIC);
+            int maxVolume = audioManager.getStreamMaxVolume(AudioManager.STREAM_MUSIC);
+            if (currentVolume == 0) {
+                Toast.makeText(this, "媒体音量为0，请调高音量", Toast.LENGTH_SHORT).show();
+                Log.w(TAG, "媒体音量为0");
+            }
         }
 
         // 停止当前正在朗读的内容
@@ -543,28 +689,39 @@ public class MainActivity extends Activity {
         extractedTexts.clear();
         currentTextIndex = -1;
 
-        // 使用参考项目的文本提取逻辑
+        // 请求音频焦点
+        if (!requestAudioFocus()) {
+            Toast.makeText(this, "无法获取音频焦点，可能无法朗读", Toast.LENGTH_SHORT).show();
+        }
+
+        // 使用改进的文本提取逻辑
         String jsCode = "javascript:(function() {" +
             "var allText = '';" +
             "var elements = document.querySelectorAll('p, div, span, h1, h2, h3, h4, h5, h6, li, td, th, article, section');" +
             "elements.forEach(function(el) {" +
-            "   var text = el.innerText.trim();" +
-            "   if (text && text.length > 5) {" +
-            "       allText += text + '。';" +
+            "   var text = el.innerText || el.textContent || '';" +
+            "   if (text) {" +
+            "       text = text.trim();" +
+            "       if (text.length > 5) {" +
+            "           allText += text + '。';" +
+            "       }" +
             "   }" +
             "});" +
             "return allText;" +
             "})()";
         
+        Log.d(TAG, "开始提取网页文本...");
         webView.evaluateJavascript(jsCode, new ValueCallback<String>() {
             @Override
             public void onReceiveValue(String value) {
+                Log.d(TAG, "JavaScript返回值: " + value);
+                
                 if (value != null && !value.equals("") && !value.trim().isEmpty()) {
                     try {
                         // 清理文本：移除JSON引号包装，处理转义字符
                         String cleanText = value.replaceAll("^\"|\"$", "").replace("\\n", "\n").replace("\\\"", "\"").trim();
                         
-                        if (cleanText.isEmpty()) {
+                        if (cleanText.isEmpty() || cleanText.equals("")) {
                             Toast.makeText(MainActivity.this, "页面中没有可朗读的文字", Toast.LENGTH_SHORT).show();
                             return;
                         }
@@ -572,9 +729,10 @@ public class MainActivity extends Activity {
                         // 按句号分割成句子列表
                         String[] sentences = cleanText.split("。");
                         for (String sentence : sentences) {
-                            if (!sentence.trim().isEmpty()) {
+                            String trimmedSentence = sentence.trim();
+                            if (!trimmedSentence.isEmpty() && trimmedSentence.length() > 2) {
                                 // 重新添加句号
-                                extractedTexts.add(sentence.trim() + "。");
+                                extractedTexts.add(trimmedSentence + "。");
                             }
                         }
 
@@ -583,28 +741,36 @@ public class MainActivity extends Activity {
                             return;
                         }
                         
+                        // 限制句子数量，防止过长
+                        if (extractedTexts.size() > 500) {
+                            extractedTexts = extractedTexts.subList(0, 500);
+                            Toast.makeText(MainActivity.this, "文本过长，只朗读前500句", Toast.LENGTH_SHORT).show();
+                        }
+                        
                         // 设置当前朗读状态
                         isTTSActive = true;
                         currentTextIndex = 0;
+                        isPlaying = true;
                         
                         // 开始朗读第一句
                         speakCurrentSentence();
                         
                         Toast.makeText(MainActivity.this, "开始朗读，共 " + extractedTexts.size() + " 句", Toast.LENGTH_SHORT).show();
-                        Log.d(TAG, "Extracted " + extractedTexts.size() + " sentences");
+                        Log.d(TAG, "提取到 " + extractedTexts.size() + " 句，开始朗读");
                     } catch (Exception e) {
                         Log.e(TAG, "朗读异常", e);
                         Toast.makeText(MainActivity.this, "朗读出错: " + e.getMessage(), Toast.LENGTH_SHORT).show();
                     }
                 } else {
                     Toast.makeText(MainActivity.this, "页面中没有可朗读的文字", Toast.LENGTH_SHORT).show();
+                    Log.w(TAG, "未提取到文本");
                 }
             }
         });
     }
     
     /**
-     * 朗读当前句子
+     * 朗读当前句子（修复版）
      */
     private void speakCurrentSentence() {
         if (!isTTSActive || extractedTexts.isEmpty() || currentTextIndex < 0 || currentTextIndex >= extractedTexts.size()) {
@@ -616,19 +782,28 @@ public class MainActivity extends Activity {
             String text = extractedTexts.get(currentTextIndex);
             if (textToSpeech != null && !TextUtils.isEmpty(text)) {
                 isPlaying = true;
+                int result;
+                
                 if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.LOLLIPOP) {
-                    textToSpeech.speak(text, TextToSpeech.QUEUE_FLUSH, null, "sentence_" + currentTextIndex);
+                    result = textToSpeech.speak(text, TextToSpeech.QUEUE_FLUSH, null, "sentence_" + currentTextIndex);
                 } else {
                     HashMap<String, String> params = new HashMap<>();
                     params.put(TextToSpeech.Engine.KEY_PARAM_UTTERANCE_ID, "sentence_" + currentTextIndex);
-                    textToSpeech.speak(text, TextToSpeech.QUEUE_FLUSH, params);
+                    result = textToSpeech.speak(text, TextToSpeech.QUEUE_FLUSH, params);
                 }
-                Log.d(TAG, "Speaking sentence " + currentTextIndex + ": " + text.substring(0, Math.min(20, text.length())));
+                
+                if (result == TextToSpeech.ERROR) {
+                    Log.e(TAG, "speak()返回ERROR");
+                    Toast.makeText(this, "朗读失败，请重试", Toast.LENGTH_SHORT).show();
+                } else {
+                    Log.d(TAG, "正在朗读句子 " + currentTextIndex + ": " + text.substring(0, Math.min(20, text.length())));
+                }
             } else {
                 Log.e(TAG, "无法朗读：TTS未初始化或文本为空");
             }
         } catch (Exception e) {
             Log.e(TAG, "朗读句子时发生异常", e);
+            e.printStackTrace();
         }
     }
     
@@ -741,6 +916,21 @@ public class MainActivity extends Activity {
             isPlaying = false;
             stopAutoScroll();
             Toast.makeText(this, "朗读已暂停", Toast.LENGTH_SHORT).show();
+        }
+    }
+    
+    /**
+     * 停止朗读
+     */
+    private void stopTextToSpeech() {
+        if (textToSpeech != null) {
+            textToSpeech.stop();
+            isPlaying = false;
+            isTTSActive = false;
+            currentTextIndex = -1;
+            extractedTexts.clear();
+            abandonAudioFocus();
+            Log.d(TAG, "朗读已停止");
         }
     }
     
@@ -1021,13 +1211,32 @@ public class MainActivity extends Activity {
         builder.setNegativeButton("取消", null);
         builder.show();
     }
-
     @Override
     public void onBackPressed() {
         if (webView.canGoBack()) {
             webView.goBack();
         } else {
             super.onBackPressed();
+        }
+    }
+    
+    @Override
+    protected void onDestroy() {
+        super.onDestroy();
+        // 清理TTS资源
+        if (textToSpeech != null) {
+            textToSpeech.stop();
+            textToSpeech.shutdown();
+        }
+        // 放弃音频焦点
+        abandonAudioFocus();
+        // 注销广播接收器
+        if (ttsControlReceiver != null) {
+            try {
+                unregisterReceiver(ttsControlReceiver);
+            } catch (Exception e) {
+                Log.e(TAG, "注销广播接收器失败", e);
+            }
         }
     }
 }
