@@ -147,15 +147,29 @@ public class MainActivity extends Activity {
         setupKeyboardListener();
         initTTS();
         
-        // 初始化通知管理器
-        notificationManager = (NotificationManager) getSystemService(Context.NOTIFICATION_SERVICE);
-        createTTSNotificationChannel();
+        // 初始化通知管理器（增加空值检查）
+        try {
+            notificationManager = (NotificationManager) getSystemService(Context.NOTIFICATION_SERVICE);
+            if (notificationManager != null) {
+                createTTSNotificationChannel();
+            }
+        } catch (Exception e) {
+            Log.e(TAG, "初始化通知管理器失败", e);
+        }
         
         // 初始化TTS控制界面
-        initTTSControlLayout();
+        try {
+            initTTSControlLayout();
+        } catch (Exception e) {
+            Log.e(TAG, "初始化TTS控制界面失败", e);
+        }
         
         // 注册TTS控制广播接收器
-        registerTTSControlReceiver();
+        try {
+            registerTTSControlReceiver();
+        } catch (Exception e) {
+            Log.e(TAG, "注册TTS控制广播接收器失败", e);
+        }
         
         loadBlockedDomains();
 
@@ -593,21 +607,28 @@ public class MainActivity extends Activity {
      * 朗读当前句子
      */
     private void speakCurrentSentence() {
-        if (!isTTSActive || extractedTexts.isEmpty() || currentTextIndex >= extractedTexts.size()) {
+        if (!isTTSActive || extractedTexts.isEmpty() || currentTextIndex < 0 || currentTextIndex >= extractedTexts.size()) {
+            Log.w(TAG, "无法朗读：索引无效或未激活");
             return;
         }
         
-        String text = extractedTexts.get(currentTextIndex);
-        if (textToSpeech != null) {
-            isPlaying = true;
-            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.LOLLIPOP) {
-                textToSpeech.speak(text, TextToSpeech.QUEUE_FLUSH, null, "sentence_" + currentTextIndex);
+        try {
+            String text = extractedTexts.get(currentTextIndex);
+            if (textToSpeech != null && !TextUtils.isEmpty(text)) {
+                isPlaying = true;
+                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.LOLLIPOP) {
+                    textToSpeech.speak(text, TextToSpeech.QUEUE_FLUSH, null, "sentence_" + currentTextIndex);
+                } else {
+                    HashMap<String, String> params = new HashMap<>();
+                    params.put(TextToSpeech.Engine.KEY_PARAM_UTTERANCE_ID, "sentence_" + currentTextIndex);
+                    textToSpeech.speak(text, TextToSpeech.QUEUE_FLUSH, params);
+                }
+                Log.d(TAG, "Speaking sentence " + currentTextIndex + ": " + text.substring(0, Math.min(20, text.length())));
             } else {
-                HashMap<String, String> params = new HashMap<>();
-                params.put(TextToSpeech.Engine.KEY_PARAM_UTTERANCE_ID, "sentence_" + currentTextIndex);
-                textToSpeech.speak(text, TextToSpeech.QUEUE_FLUSH, params);
+                Log.e(TAG, "无法朗读：TTS未初始化或文本为空");
             }
-            Log.d(TAG, "Speaking sentence " + currentTextIndex + ": " + text.substring(0, Math.min(20, text.length())));
+        } catch (Exception e) {
+            Log.e(TAG, "朗读句子时发生异常", e);
         }
     }
     
