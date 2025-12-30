@@ -405,7 +405,7 @@ public class MainActivity extends Activity {
                                         isTTSActive = false;
                                         abandonAudioFocus();
                                         runOnUiThread(() -> Toast.makeText(MainActivity.this, "朗读结束", Toast.LENGTH_SHORT).show());
-                                        addLog("提示: "朗读结束");
+                                        addLog("提示: 朗读结束");
                                     }
                                 }
 
@@ -418,7 +418,7 @@ public class MainActivity extends Activity {
                             ttsInitialized = true;
                             Log.d(TAG, "========== TTS完全初始化成功 ==========");
                             runOnUiThread(() -> Toast.makeText(MainActivity.this, "TTS初始化成功", Toast.LENGTH_SHORT).show());
-                            addLog("提示: "TTS初始化成功");
+                            addLog("提示: TTS初始化成功");
                         } else {
                             Log.e(TAG, "✗ TTS语言完全不支持");
                             Log.e(TAG, "最后一次语言设置结果: " + getResultCodeName(langResult));
@@ -464,7 +464,14 @@ public class MainActivity extends Activity {
                         Log.e(TAG, "textToSpeech对象: " + (textToSpeech != null ? "存在" : "为空"));
                         runOnUiThread(() -> {
                             Toast.makeText(MainActivity.this, "TTS初始化超时\n\n可能原因:\n1. 系统TTS服务未响应\n2. 设备性能不足\n3. 系统限制\n\n建议重启应用", Toast.LENGTH_LONG).show();
-                            addLog("提示: "TTS初始化超时\n\n可能原因:\n1. 系统TTS服务未响应\n2. 设备性能不足\n3. 系统限制\n\n建议重启应用");
+                            addLog("提示: TTS初始化超时
+
+可能原因:
+1. 系统TTS服务未响应
+2. 设备性能不足
+3. 系统限制
+
+建议重启应用");
                         });
                     }
                 }
@@ -476,7 +483,7 @@ public class MainActivity extends Activity {
             e.printStackTrace();
             ttsInitialized = false;
             runOnUiThread(() -> Toast.makeText(MainActivity.this, "TTS初始化异常: " + e.getMessage(), Toast.LENGTH_LONG).show());
-            addLog("提示: "TTS初始化异常: ");
+            addLog("提示: TTS初始化异常: ");
         }
     }
     
@@ -670,7 +677,7 @@ public class MainActivity extends Activity {
                 // 检查屏蔽网站
                 if (isUrlBlocked(url)) {
                     Toast.makeText(MainActivity.this, "该网站已被屏蔽", Toast.LENGTH_SHORT).show();
-                    addLog("提示: "该网站已被屏蔽");
+                    addLog("提示: 该网站已被屏蔽");
                     return true; // 阻止加载
                 }
 
@@ -980,7 +987,7 @@ public class MainActivity extends Activity {
             
             String engineName = which == 0 ? "系统默认" : engineNames[which];
             Toast.makeText(this, "已切换到: " + engineName + "\n正在重新初始化...", Toast.LENGTH_SHORT).show();
-            addLog("提示: "已切换到: ");
+            addLog("提示: 已切换到: ");
         });
         
         builder.setNegativeButton("取消", null);
@@ -998,7 +1005,7 @@ public class MainActivity extends Activity {
         
         String status = debugLogEnabled ? "开启" : "关闭";
         Toast.makeText(this, "调试日志已" + status, Toast.LENGTH_SHORT).show();
-        addLog("提示: "调试日志已");
+        addLog("提示: 调试日志已");
         
         if (debugLogEnabled) {
             addLog("========== 调试日志已开启 ==========");
@@ -1065,7 +1072,7 @@ public class MainActivity extends Activity {
     private void copyLogToClipboard() {
         if (logBuffer.length() == 0) {
             Toast.makeText(this, "没有日志可复制", Toast.LENGTH_SHORT).show();
-            addLog("提示: "没有日志可复制");
+            addLog("提示: 没有日志可复制");
             return;
         }
         
@@ -1074,7 +1081,7 @@ public class MainActivity extends Activity {
         clipboard.setPrimaryClip(clip);
         
         Toast.makeText(this, "日志已复制到剪贴板", Toast.LENGTH_SHORT).show();
-        addLog("提示: "日志已复制到剪贴板");
+        addLog("提示: 日志已复制到剪贴板");
         addLog("========== 日志已复制到剪贴板 ==========");
     }
     
@@ -1084,7 +1091,7 @@ public class MainActivity extends Activity {
     private void saveLogToFile() {
         if (logBuffer.length() == 0) {
             Toast.makeText(this, "没有日志可保存", Toast.LENGTH_SHORT).show();
-            addLog("提示: "没有日志可保存");
+            addLog("提示: 没有日志可保存");
             return;
         }
         
@@ -1106,11 +1113,12 @@ public class MainActivity extends Activity {
             addLog("========== 日志已保存到: " + logFile.getAbsolutePath() + " ==========");
             
             Toast.makeText(this, "日志已保存到:\n" + logFile.getAbsolutePath(), Toast.LENGTH_LONG).show();
-            addLog("提示: "日志已保存到:\n");
+            addLog("提示: 日志已保存到:
+");
         } catch (Exception e) {
             addLog("保存日志失败: " + e.getMessage());
             Toast.makeText(this, "保存日志失败: " + e.getMessage(), Toast.LENGTH_LONG).show();
-            addLog("提示: "保存日志失败: ");
+            addLog("提示: 保存日志失败: ");
         }
     }
     
@@ -1125,7 +1133,7 @@ public class MainActivity extends Activity {
                 logBuffer = new StringBuilder();
                 addLog("========== 日志已清除 ==========");
                 Toast.makeText(this, "日志已清除", Toast.LENGTH_SHORT).show();
-                addLog("提示: "日志已清除");
+                addLog("提示: 日志已清除");
             })
             .setNegativeButton("取消", null)
             .show();
@@ -1201,18 +1209,18 @@ public class MainActivity extends Activity {
         if (!ttsInitialized || textToSpeech == null) {
             // TTS未初始化，显示提示并尝试等待初始化完成
             Toast.makeText(this, "TTS正在初始化中，请稍后再试...", Toast.LENGTH_SHORT).show();
-            addLog("提示: "TTS正在初始化中，请稍后再试...");
+            addLog("提示: TTS正在初始化中，请稍后再试...");
             Log.w(TAG, "readPage: TTS未完全初始化，等待中...");
             
             // 设置一个延迟，等待TTS初始化完成
             new Handler().postDelayed(() -> {
                 if (ttsInitialized && textToSpeech != null) {
                     Toast.makeText(MainActivity.this, "TTS初始化完成，开始朗读", Toast.LENGTH_SHORT).show();
-                    addLog("提示: "TTS初始化完成，开始朗读");
+                    addLog("提示: TTS初始化完成，开始朗读");
                     readPage();
                 } else {
                     Toast.makeText(MainActivity.this, "TTS初始化失败，请检查系统TTS设置", Toast.LENGTH_LONG).show();
-                    addLog("提示: "TTS初始化失败，请检查系统TTS设置");
+                    addLog("提示: TTS初始化失败，请检查系统TTS设置");
                 }
             }, 2000);
             return;
@@ -1224,7 +1232,7 @@ public class MainActivity extends Activity {
             int maxVolume = audioManager.getStreamMaxVolume(AudioManager.STREAM_MUSIC);
             if (currentVolume == 0) {
                 Toast.makeText(this, "媒体音量为0，请调高音量", Toast.LENGTH_SHORT).show();
-                addLog("提示: "媒体音量为0，请调高音量");
+                addLog("提示: 媒体音量为0，请调高音量");
                 Log.w(TAG, "媒体音量为0");
             }
         }
@@ -1239,7 +1247,7 @@ public class MainActivity extends Activity {
         // 请求音频焦点
         if (!requestAudioFocus()) {
             Toast.makeText(this, "无法获取音频焦点，可能无法朗读", Toast.LENGTH_SHORT).show();
-            addLog("提示: "无法获取音频焦点，可能无法朗读");
+            addLog("提示: 无法获取音频焦点，可能无法朗读");
         }
 
         // 使用改进的文本提取逻辑
@@ -1271,7 +1279,7 @@ public class MainActivity extends Activity {
                         
                         if (cleanText.isEmpty() || cleanText.equals("")) {
                             Toast.makeText(MainActivity.this, "页面中没有可朗读的文字", Toast.LENGTH_SHORT).show();
-                            addLog("提示: "页面中没有可朗读的文字");
+                            addLog("提示: 页面中没有可朗读的文字");
                             return;
                         }
 
@@ -1287,7 +1295,7 @@ public class MainActivity extends Activity {
 
                         if (extractedTexts.isEmpty()) {
                             Toast.makeText(MainActivity.this, "未能提取到有效句子", Toast.LENGTH_SHORT).show();
-                            addLog("提示: "未能提取到有效句子");
+                            addLog("提示: 未能提取到有效句子");
                             return;
                         }
                         
@@ -1295,7 +1303,7 @@ public class MainActivity extends Activity {
                         if (extractedTexts.size() > 500) {
                             extractedTexts = extractedTexts.subList(0, 500);
                             Toast.makeText(MainActivity.this, "文本过长，只朗读前500句", Toast.LENGTH_SHORT).show();
-                            addLog("提示: "文本过长，只朗读前500句");
+                            addLog("提示: 文本过长，只朗读前500句");
                         }
                         
                         // 设置当前朗读状态
@@ -1307,16 +1315,16 @@ public class MainActivity extends Activity {
                         speakCurrentSentence();
                         
                         Toast.makeText(MainActivity.this, "开始朗读，共 " + extractedTexts.size() + " 句", Toast.LENGTH_SHORT).show();
-                        addLog("提示: "开始朗读，共 ");
+                        addLog("提示: 开始朗读，共 ");
                         Log.d(TAG, "提取到 " + extractedTexts.size() + " 句，开始朗读");
                     } catch (Exception e) {
                         Log.e(TAG, "朗读异常", e);
                         Toast.makeText(MainActivity.this, "朗读出错: " + e.getMessage(), Toast.LENGTH_SHORT).show();
-                        addLog("提示: "朗读出错: ");
+                        addLog("提示: 朗读出错: ");
                     }
                 } else {
                     Toast.makeText(MainActivity.this, "页面中没有可朗读的文字", Toast.LENGTH_SHORT).show();
-                    addLog("提示: "页面中没有可朗读的文字");
+                    addLog("提示: 页面中没有可朗读的文字");
                     Log.w(TAG, "未提取到文本");
                 }
             }
@@ -1349,7 +1357,7 @@ public class MainActivity extends Activity {
                 if (result == TextToSpeech.ERROR) {
                     Log.e(TAG, "speak()返回ERROR");
                     Toast.makeText(this, "朗读失败，请重试", Toast.LENGTH_SHORT).show();
-                    addLog("提示: "朗读失败，请重试");
+                    addLog("提示: 朗读失败，请重试");
                 } else {
                     Log.d(TAG, "正在朗读句子 " + currentTextIndex + ": " + text.substring(0, Math.min(20, text.length())));
                 }
@@ -1471,7 +1479,7 @@ public class MainActivity extends Activity {
             isPlaying = false;
             stopAutoScroll();
             Toast.makeText(this, "朗读已暂停", Toast.LENGTH_SHORT).show();
-            addLog("提示: "朗读已暂停");
+            addLog("提示: 朗读已暂停");
         }
     }
     
@@ -1497,7 +1505,7 @@ public class MainActivity extends Activity {
         if (textToSpeech != null && !isPlaying && !extractedTexts.isEmpty()) {
             speakCurrentSentence();
             Toast.makeText(this, "朗读继续", Toast.LENGTH_SHORT).show();
-            addLog("提示: "朗读继续");
+            addLog("提示: 朗读继续");
         }
     }
     
@@ -1510,7 +1518,7 @@ public class MainActivity extends Activity {
             speakCurrentSentence();
         } else {
             Toast.makeText(this, "已经是第一句了", Toast.LENGTH_SHORT).show();
-            addLog("提示: "已经是第一句了");
+            addLog("提示: 已经是第一句了");
         }
     }
     
@@ -1523,7 +1531,7 @@ public class MainActivity extends Activity {
             speakCurrentSentence();
         } else {
             Toast.makeText(this, "已经是最后一句了", Toast.LENGTH_SHORT).show();
-            addLog("提示: "已经是最后一句了");
+            addLog("提示: 已经是最后一句了");
         }
     }
     
@@ -1731,7 +1739,7 @@ public class MainActivity extends Activity {
                         blockedDomains.remove(domain);
                         saveBlockedDomains();
                         Toast.makeText(MainActivity.this, "已取消屏蔽: " + domain, Toast.LENGTH_SHORT).show();
-                        addLog("提示: "已取消屏蔽: ");
+                        addLog("提示: 已取消屏蔽: ");
                         showBlockedDomainsDialog();
                     })
                     .setNegativeButton("取消", null)
@@ -1763,15 +1771,15 @@ public class MainActivity extends Activity {
                     blockedDomains.add(domain);
                     saveBlockedDomains();
                     Toast.makeText(MainActivity.this, "已添加屏蔽: " + domain, Toast.LENGTH_SHORT).show();
-                    addLog("提示: "已添加屏蔽: ");
+                    addLog("提示: 已添加屏蔽: ");
                     showBlockedDomainsDialog();
                 } else {
                     Toast.makeText(MainActivity.this, "该域名已在屏蔽列表中", Toast.LENGTH_SHORT).show();
-                    addLog("提示: "该域名已在屏蔽列表中");
+                    addLog("提示: 该域名已在屏蔽列表中");
                 }
             } else {
                 Toast.makeText(MainActivity.this, "请输入有效的域名", Toast.LENGTH_SHORT).show();
-                addLog("提示: "请输入有效的域名");
+                addLog("提示: 请输入有效的域名");
             }
         });
         
