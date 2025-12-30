@@ -1163,7 +1163,7 @@ public class MainActivity extends Activity {
     /**
      * 引擎信息类（独立于TextToSpeech.EngineInfo，避免兼容性问题）
      */
-[/END-REPLACE]
+
     private static class EngineInfo {
         public String name;
         public String label;
