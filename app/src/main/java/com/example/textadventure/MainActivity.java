@@ -809,7 +809,6 @@ public class MainActivity extends Activity {
         });
         builder.show();
     }
-    
     /**
      * 显示TTS引擎选择对话框
      */
@@ -817,42 +816,121 @@ public class MainActivity extends Activity {
         AlertDialog.Builder builder = new AlertDialog.Builder(this);
         builder.setTitle("选择语音引擎");
         
-        // 获取系统中已安装的TTS引擎
-        android.speech.tts.TextToSpeech.EngineInfo[] engines = null;
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.ICE_CREAM_SANDWICH) {
-            android.speech.tts.TextToSpeech tempTTS = new android.speech.tts.TextToSpeech(this, null);
-            engines = tempTTS.getEngines().toArray(new android.speech.tts.TextToSpeech.EngineInfo[0]);
-            tempTTS.shutdown();
+        // 获取系统中已安装的TTS引擎列表
+        final List<EngineInfo> engineList = new ArrayList<>();
+        
+        // 添加系统默认选项
+        EngineInfo defaultEngine = new EngineInfo();
+        defaultEngine.name = "";
+        defaultEngine.label = "系统默认引擎";
+        defaultEngine.packageName = "";
+        engineList.add(defaultEngine);
+        
+        // 通过PackageManager查询TTS引擎（更可靠的方式）
+        android.content.pm.PackageManager pm = getPackageManager();
+        android.content.Intent ttsIntent = new android.content.Intent("android.speech.tts.engine.INSTALL_TTS_DATA");
+        android.content.pm.ResolveInfo[] resolveInfos = null;
+        
+        try {
+            java.util.List<android.content.pm.ResolveInfo> list = pm.queryIntentActivities(ttsIntent, 0);
+            if (list != null) {
+                resolveInfos = list.toArray(new android.content.pm.ResolveInfo[0]);
+            }
+        } catch (Exception e) {
+            Log.w(TAG, "通过PackageManager查询TTS引擎失败: " + e.getMessage());
         }
         
-        final List<android.speech.tts.TextToSpeech.EngineInfo> engineList = new ArrayList<>();
-        engineList.add(new CustomEngineInfo("系统默认", "", true));
-        
-        if (engines != null) {
-            for (android.speech.tts.TextToSpeech.EngineInfo info : engines) {
-                engineList.add(info);
+        // 尝试使用TextToSpeech获取引擎列表
+        android.speech.tts.TextToSpeech.EngineInfo[] engines = null;
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.ICE_CREAM_SANDWICH) {
+            try {
+                android.speech.tts.TextToSpeech tempTTS = new android.speech.tts.TextToSpeech(this, new android.speech.tts.TextToSpeech.OnInitListener() {
+                    @Override
+                    public void onInit(int status) {
+                        // 静默回调
+                    }
+                });
+                engines = tempTTS.getEngines().toArray(new android.speech.tts.TextToSpeech.EngineInfo[0]);
+                tempTTS.shutdown();
+            } catch (Exception e) {
+                Log.w(TAG, "通过TextToSpeech获取引擎列表失败: " + e.getMessage());
             }
         }
         
+        // 合并引擎列表
+        java.util.Set<String> addedPackages = new java.util.HashSet<>();
+        
+        if (engines != null) {
+            for (android.speech.tts.TextToSpeech.EngineInfo info : engines) {
+                if (!addedPackages.contains(info.name)) {
+                    EngineInfo engine = new EngineInfo();
+                    engine.name = info.name;
+                    engine.label = info.label;
+                    engine.packageName = info.name;
+                    engineList.add(engine);
+                    addedPackages.add(info.name);
+                }
+            }
+        }
+        
+        // 添加常见预设引擎（如果系统中存在但未被检测到）
+        String[] commonEngines = {
+            "com.google.android.tts",           // Google TTS
+            "com.iflytek.speechsuite",         // 科大讯飞（小爱语音可能使用）
+            "com.miui.weather.tts",            // 小米系统TTS
+            "com.xiaomi.tts",                  // 小米TTS
+            "com.iflytek.cloudspeech",         // 讯飞云语音
+            "com.baidu.duersdk.opensdk",       // 百度TTS
+            "com.samsung.SMT",                 // 三星TTS
+        };
+        
+        for (String pkg : commonEngines) {
+            if (!addedPackages.contains(pkg)) {
+                try {
+                    android.content.pm.ApplicationInfo appInfo = pm.getApplicationInfo(pkg, 0);
+                    EngineInfo engine = new EngineInfo();
+                    engine.name = pkg;
+                    engine.label = pm.getApplicationLabel(appInfo).toString();
+                    engine.packageName = pkg;
+                    engineList.add(engine);
+                    addedPackages.add(pkg);
+                } catch (android.content.pm.PackageManager.NameNotFoundException e) {
+                    // 引擎未安装，跳过
+                }
+            }
+        }
+        
+        // 生成显示名称
         String[] engineNames = new String[engineList.size()];
         int selectedIndex = 0;
         
         for (int i = 0; i < engineList.size(); i++) {
-            android.speech.tts.TextToSpeech.EngineInfo info = engineList.get(i);
+            EngineInfo info = engineList.get(i);
+            String displayName = info.label;
+            String packageName = info.packageName;
+            
+            // 识别并美化常见引擎名称
             if (i == 0) {
-                engineNames[i] = "系统默认引擎";
-            } else {
-                String name = info.name;
-                String label = info.label;
-                // 识别常见引擎
-                if (info.name != null && info.name.contains("xiaomi")) {
-                    name = "🎤 小爱语音 (Xiaomi)";
-                } else if (info.name != null && info.name.contains("google")) {
-                    name = "🔊 Google语音合成";
+                displayName = "⭐ 系统默认引擎";
+            } else if (packageName != null) {
+                if (packageName.contains("google")) {
+                    displayName = "🔊 Google语音合成 (Google TTS)";
+                } else if (packageName.contains("iflytek")) {
+                    displayName = "🎤 小爱语音/科大讯飞 (iFlytek)";
+                } else if (packageName.contains("xiaomi") || packageName.contains("miui")) {
+                    displayName = "🎤 小爱语音 (Xiaomi TTS)";
+                } else if (packageName.contains("baidu")) {
+                    displayName = "🔊 百度语音 (Baidu TTS)";
+                } else if (packageName.contains("samsung")) {
+                    displayName = "🔊 三星语音 (Samsung TTS)";
+                } else {
+                    displayName = displayName + " (" + packageName + ")";
                 }
-                engineNames[i] = name + (label != null ? " (" + label + ")" : "");
             }
             
+            engineNames[i] = displayName;
+            
+            // 查找当前选择的引擎索引
             if (currentTTSEngine != null && currentTTSEngine.equals(info.name)) {
                 selectedIndex = i;
             }
@@ -881,6 +959,15 @@ public class MainActivity extends Activity {
         
         builder.setNegativeButton("取消", null);
         builder.show();
+    }
+    
+    /**
+     * 引擎信息类（独立于TextToSpeech.EngineInfo，避免兼容性问题）
+     */
+    private static class EngineInfo {
+        public String name;
+        public String label;
+        public String packageName;
     }
     
     /**
