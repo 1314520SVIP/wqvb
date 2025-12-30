@@ -37,6 +37,16 @@ import android.widget.ListView;
 import android.widget.AdapterView;
 import android.app.ProgressDialog;
 import android.webkit.ValueCallback;
+import android.widget.FrameLayout;
+import android.widget.ScrollView;
+import android.content.BroadcastReceiver;
+import android.content.IntentFilter;
+import android.app.Notification;
+import android.app.NotificationChannel;
+import android.app.NotificationManager;
+import android.app.PendingIntent;
+import android.os.PowerManager;
+import android.content.ComponentName;
 
 public class MainActivity extends Activity {
     private WebView webView;
@@ -64,6 +74,34 @@ public class MainActivity extends Activity {
     private int currentTextIndex = -1;
     private boolean isTTSActive = false;
     private boolean isPlaying = false;
+    
+    // 新增：TTS 控制界面
+    private FrameLayout ttsControlLayout;
+    private Button btnPrevious, btnNext;
+    
+    // 新增：后台朗读与通知
+    private NotificationManager notificationManager;
+    private static final String TTS_NOTIFICATION_CHANNEL_ID = "tts_notification_channel";
+    private static final int TTS_NOTIFICATION_ID = 1001;
+    private boolean isBackgroundReadingEnabled = false;
+    private PowerManager.WakeLock wakeLock;
+    
+    // 新增：自动滚动与高亮
+    private boolean isAutoScrollEnabled = false;
+    private Handler autoScrollHandler = new Handler();
+    private Runnable autoScrollRunnable;
+    private String currentHighlightColor = "rgba(255, 165, 0, 0.3)";
+    
+    // 新增：TTS 参数
+    private float currentSpeechRate = 0.9f;
+    private float currentPitch = 1.0f;
+    
+    // 新增：广播接收器
+    private BroadcastReceiver ttsControlReceiver;
+    private static final String ACTION_TTS_PLAY_PAUSE = "com.example.textadventure.ACTION_TTS_PLAY_PAUSE";
+    private static final String ACTION_TTS_PREVIOUS = "com.example.textadventure.ACTION_TTS_PREVIOUS";
+    private static final String ACTION_TTS_NEXT = "com.example.textadventure.ACTION_TTS_NEXT";
+    private static final String ACTION_TTS_STOP = "com.example.textadventure.ACTION_TTS_STOP";
 
     // User Agents
     private static final String UA_ANDROID_PHONE = "Mozilla/5.0 (Linux; Android 10; SM-G975F) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.120 Mobile Safari/537.36";
@@ -106,6 +144,17 @@ public class MainActivity extends Activity {
         setupWebView();
         setupKeyboardListener();
         initTTS();
+        
+        // 初始化通知管理器
+        notificationManager = (NotificationManager) getSystemService(Context.NOTIFICATION_SERVICE);
+        createTTSNotificationChannel();
+        
+        // 初始化TTS控制界面
+        initTTSControlLayout();
+        
+        // 注册TTS控制广播接收器
+        registerTTSControlReceiver();
+        
         loadBlockedDomains();
 
         webView.loadUrl("https://www.baidu.com");
@@ -127,7 +176,42 @@ public class MainActivity extends Activity {
                         } else {
                             Log.d(TAG, "TTS初始化成功");
                             // 设置语速
-                            textToSpeech.setSpeechRate(0.9f);
+                            textToSpeech.setSpeechRate(currentSpeechRate);
+                            textToSpeech.setPitch(currentPitch);
+                            
+                            // 设置朗读完成监听器，实现自动播放下一句
+                            textToSpeech.setOnUtteranceProgressListener(new android.speech.tts.UtteranceProgressListener() {
+                                @Override
+                                public void onStart(String utteranceId) {
+                                    Log.d(TAG, "开始朗读: " + utteranceId);
+                                    // 提取索引
+                                    try {
+                                        currentTextIndex = Integer.parseInt(utteranceId.replace("sentence_", ""));
+                                        highlightCurrentSentence();
+                                    } catch (NumberFormatException e) {
+                                        // Ignore
+                                    }
+                                }
+
+                                @Override
+                                public void onDone(String utteranceId) {
+                                    Log.d(TAG, "朗读完成: " + utteranceId);
+                                    // 播放下一句
+                                    currentTextIndex++;
+                                    if (currentTextIndex < extractedTexts.size()) {
+                                        speakCurrentSentence();
+                                    } else {
+                                        isPlaying = false;
+                                        isTTSActive = false;
+                                        Toast.makeText(MainActivity.this, "朗读结束", Toast.LENGTH_SHORT).show();
+                                    }
+                                }
+
+                                @Override
+                                public void onError(String utteranceId) {
+                                    Log.e(TAG, "朗读错误: " + utteranceId);
+                                }
+                            });
                         }
                     } else {
                         Log.e(TAG, "TTS初始化失败: " + status);
@@ -522,6 +606,235 @@ public class MainActivity extends Activity {
                 textToSpeech.speak(text, TextToSpeech.QUEUE_FLUSH, params);
             }
             Log.d(TAG, "Speaking sentence " + currentTextIndex + ": " + text.substring(0, Math.min(20, text.length())));
+        }
+    }
+    
+    /**
+     * 初始化TTS控制界面
+     */
+    private void initTTSControlLayout() {
+        ttsControlLayout = new FrameLayout(this);
+        FrameLayout.LayoutParams layoutParams = new FrameLayout.LayoutParams(
+            FrameLayout.LayoutParams.WRAP_CONTENT,
+            FrameLayout.LayoutParams.WRAP_CONTENT
+        );
+        layoutParams.gravity = android.view.Gravity.LEFT | android.view.Gravity.CENTER_VERTICAL;
+        layoutParams.setMargins(10, 0, 0, 0);
+        ttsControlLayout.setLayoutParams(layoutParams);
+        ttsControlLayout.setVisibility(View.GONE);
+        ttsControlLayout.setAlpha(0.7f);
+        
+        LinearLayout buttonLayout = new LinearLayout(this);
+        buttonLayout.setOrientation(LinearLayout.VERTICAL);
+        buttonLayout.setBackgroundColor(android.graphics.Color.argb(180, 50, 50, 50));
+        buttonLayout.setPadding(8, 15, 8, 15);
+        
+        // 上一句按钮
+        btnPrevious = new Button(this);
+        btnPrevious.setText("⬆");
+        btnPrevious.setBackgroundColor(android.graphics.Color.TRANSPARENT);
+        btnPrevious.setTextColor(android.graphics.Color.WHITE);
+        btnPrevious.setTextSize(16);
+        btnPrevious.setPadding(15, 12, 15, 12);
+        btnPrevious.setOnClickListener(v -> previousTextToSpeech());
+        
+        // 播放/暂停按钮
+        Button btnPlayPause = new Button(this);
+        btnPlayPause.setText("▶");
+        btnPlayPause.setBackgroundColor(android.graphics.Color.TRANSPARENT);
+        btnPlayPause.setTextColor(android.graphics.Color.WHITE);
+        btnPlayPause.setTextSize(18);
+        btnPlayPause.setPadding(15, 15, 15, 15);
+        btnPlayPause.setOnClickListener(v -> togglePlayPause());
+        
+        // 下一句按钮
+        btnNext = new Button(this);
+        btnNext.setText("⬇");
+        btnNext.setBackgroundColor(android.graphics.Color.TRANSPARENT);
+        btnNext.setTextColor(android.graphics.Color.WHITE);
+        btnNext.setTextSize(16);
+        btnNext.setPadding(15, 12, 15, 12);
+        btnNext.setOnClickListener(v -> nextTextToSpeech());
+        
+        buttonLayout.addView(btnPrevious);
+        buttonLayout.addView(btnPlayPause);
+        buttonLayout.addView(btnNext);
+        
+        ttsControlLayout.addView(buttonLayout);
+        
+        FrameLayout mainLayout = findViewById(android.R.id.content);
+        mainLayout.addView(ttsControlLayout);
+        
+        // 设置触摸监听器实现滑动显示/隐藏
+        setupTTSControlTouchListener();
+    }
+    
+    private void setupTTSControlTouchListener() {
+        ttsControlLayout.setOnTouchListener(new View.OnTouchListener() {
+            float initialX;
+            @Override
+            public boolean onTouch(View v, MotionEvent event) {
+                switch (event.getAction()) {
+                    case MotionEvent.ACTION_DOWN:
+                        initialX = event.getX();
+                        return true;
+                    case MotionEvent.ACTION_UP:
+                        float deltaX = event.getX() - initialX;
+                        if (Math.abs(deltaX) > 50) {
+                            if (ttsControlLayout.getVisibility() == View.VISIBLE) {
+                                ttsControlLayout.setVisibility(View.GONE);
+                            } else {
+                                ttsControlLayout.setVisibility(View.VISIBLE);
+                            }
+                        }
+                        return true;
+                }
+                return false;
+            }
+        });
+    }
+    
+    /**
+     * 切换播放/暂停
+     */
+    private void togglePlayPause() {
+        if (isPlaying) {
+            pauseTextToSpeech();
+        } else {
+            if (!isTTSActive) {
+                readPage();
+            } else {
+                resumeTextToSpeech();
+            }
+        }
+    }
+    
+    /**
+     * 暂停朗读
+     */
+    private void pauseTextToSpeech() {
+        if (textToSpeech != null && isPlaying) {
+            textToSpeech.stop();
+            isPlaying = false;
+            stopAutoScroll();
+            Toast.makeText(this, "朗读已暂停", Toast.LENGTH_SHORT).show();
+        }
+    }
+    
+    /**
+     * 恢复朗读
+     */
+    private void resumeTextToSpeech() {
+        if (textToSpeech != null && !isPlaying && !extractedTexts.isEmpty()) {
+            speakCurrentSentence();
+            Toast.makeText(this, "朗读继续", Toast.LENGTH_SHORT).show();
+        }
+    }
+    
+    /**
+     * 上一句
+     */
+    private void previousTextToSpeech() {
+        if (currentTextIndex > 0) {
+            currentTextIndex--;
+            speakCurrentSentence();
+        } else {
+            Toast.makeText(this, "已经是第一句了", Toast.LENGTH_SHORT).show();
+        }
+    }
+    
+    /**
+     * 下一句
+     */
+    private void nextTextToSpeech() {
+        if (currentTextIndex < extractedTexts.size() - 1) {
+            currentTextIndex++;
+            speakCurrentSentence();
+        } else {
+            Toast.makeText(this, "已经是最后一句了", Toast.LENGTH_SHORT).show();
+        }
+    }
+    
+    /**
+     * 高亮当前句子（简化版，仅占位）
+     */
+    private void highlightCurrentSentence() {
+        // TODO: 实现JavaScript注入高亮逻辑
+        Log.d(TAG, "Highlight sentence " + currentTextIndex);
+    }
+    
+    /**
+     * 开始自动滚动
+     */
+    private void startAutoScroll() {
+        if (!isAutoScrollEnabled) return;
+        stopAutoScroll();
+        autoScrollRunnable = new Runnable() {
+            @Override
+            public void run() {
+                if (isPlaying && webView != null) {
+                    webView.scrollBy(0, 5);
+                    autoScrollHandler.postDelayed(this, 100);
+                }
+            }
+        };
+        autoScrollHandler.postDelayed(autoScrollRunnable, 100);
+    }
+    
+    /**
+     * 停止自动滚动
+     */
+    private void stopAutoScroll() {
+        if (autoScrollRunnable != null) {
+            autoScrollHandler.removeCallbacks(autoScrollRunnable);
+            autoScrollRunnable = null;
+        }
+    }
+    
+    /**
+     * 创建TTS通知渠道
+     */
+    private void createTTSNotificationChannel() {
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+            NotificationChannel channel = new NotificationChannel(
+                TTS_NOTIFICATION_CHANNEL_ID,
+                "文字朗读控制",
+                NotificationManager.IMPORTANCE_LOW
+            );
+            channel.setDescription("文字朗读控制通知");
+            channel.setShowBadge(false);
+            notificationManager.createNotificationChannel(channel);
+        }
+    }
+    
+    /**
+     * 注册TTS控制广播接收器
+     */
+    private void registerTTSControlReceiver() {
+        IntentFilter filter = new IntentFilter();
+        filter.addAction(ACTION_TTS_PLAY_PAUSE);
+        filter.addAction(ACTION_TTS_PREVIOUS);
+        filter.addAction(ACTION_TTS_NEXT);
+        filter.addAction(ACTION_TTS_STOP);
+        
+        if (ttsControlReceiver == null) {
+            ttsControlReceiver = new BroadcastReceiver() {
+                @Override
+                public void onReceive(Context context, Intent intent) {
+                    String action = intent.getAction();
+                    if (ACTION_TTS_PLAY_PAUSE.equals(action)) {
+                        togglePlayPause();
+                    } else if (ACTION_TTS_PREVIOUS.equals(action)) {
+                        previousTextToSpeech();
+                    } else if (ACTION_TTS_NEXT.equals(action)) {
+                        nextTextToSpeech();
+                    } else if (ACTION_TTS_STOP.equals(action)) {
+                        pauseTextToSpeech();
+                        isTTSActive = false;
+                    }
+                }
+            };
+            registerReceiver(ttsControlReceiver, filter);
         }
     }
 
