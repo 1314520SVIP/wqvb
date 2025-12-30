@@ -667,8 +667,19 @@ public class MainActivity extends Activity {
     private void readPage() {
         // 检查TTS是否已初始化
         if (!ttsInitialized || textToSpeech == null) {
-            Toast.makeText(this, "TTS引擎未初始化，请稍后再试", Toast.LENGTH_SHORT).show();
-            Log.e(TAG, "readPage: TTS未初始化");
+            // TTS未初始化，显示提示并尝试等待初始化完成
+            Toast.makeText(this, "TTS正在初始化中，请稍后再试...", Toast.LENGTH_SHORT).show();
+            Log.w(TAG, "readPage: TTS未完全初始化，等待中...");
+            
+            // 设置一个延迟，等待TTS初始化完成
+            new Handler().postDelayed(() -> {
+                if (ttsInitialized && textToSpeech != null) {
+                    Toast.makeText(MainActivity.this, "TTS初始化完成，开始朗读", Toast.LENGTH_SHORT).show();
+                    readPage();
+                } else {
+                    Toast.makeText(MainActivity.this, "TTS初始化失败，请检查系统TTS设置", Toast.LENGTH_LONG).show();
+                }
+            }, 2000);
             return;
         }
 
