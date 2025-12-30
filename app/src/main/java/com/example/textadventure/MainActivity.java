@@ -96,10 +96,14 @@ public class MainActivity extends Activity {
     private Handler autoScrollHandler = new Handler();
     private Runnable autoScrollRunnable;
     private String currentHighlightColor = "rgba(255, 165, 0, 0.3)";
-    
     // 新增：TTS 参数
     private float currentSpeechRate = 0.9f;
     private float currentPitch = 1.0f;
+    
+    // 新增：TTS引擎选择
+    private String currentTTSEngine = ""; // 当前选择的TTS引擎包名
+    private static final String PREF_TTS_ENGINE = "tts_engine";
+    
     // 新增：广播接收器
     private BroadcastReceiver ttsControlReceiver;
     private static final String ACTION_TTS_PLAY_PAUSE = "com.example.textadventure.ACTION_TTS_PLAY_PAUSE";
@@ -181,6 +185,10 @@ public class MainActivity extends Activity {
         setupWebView();
         setupKeyboardListener();
         initAudioManager();
+        
+        // 加载保存的TTS引擎设置
+        loadTTSSettings();
+        
         initTTS();
         
         // 初始化通知管理器（增加空值检查）
@@ -273,6 +281,17 @@ public class MainActivity extends Activity {
         }
     }
     /**
+     * 加载TTS设置
+     */
+    private void loadTTSSettings() {
+        SharedPreferences prefs = getSharedPreferences(PREFS_NAME, MODE_PRIVATE);
+        currentTTSEngine = prefs.getString(PREF_TTS_ENGINE, "");
+        if (!currentTTSEngine.isEmpty()) {
+            Log.d(TAG, "加载保存的TTS引擎: " + currentTTSEngine);
+        }
+    }
+    
+    /**
      * 初始化TTS（增强版 - 针对努比亚/小米澎湃系统优化）
      */
     private void initTTS() {
@@ -280,27 +299,25 @@ public class MainActivity extends Activity {
             Log.d(TAG, "========== 开始初始化TTS引擎 ==========");
             Log.d(TAG, "系统版本: " + Build.VERSION.RELEASE + " (API " + Build.VERSION.SDK_INT + ")");
             Log.d(TAG, "设备厂商: " + Build.MANUFACTURER + ", 型号: " + Build.MODEL);
+            
             // 检查TTS服务是否可用（使用字符串常量以避免编译错误）
             android.content.pm.PackageManager pm = getPackageManager();
             try {
                 if (!pm.hasSystemFeature("android.software.text_to_speech")) {
                     Log.w(TAG, "设备可能不支持TTS功能");
-                    // 不直接返回，尝试继续初始化，让TTS引擎自己判断
                 } else {
                     Log.d(TAG, "设备支持TTS功能");
                 }
             } catch (Exception e) {
                 Log.w(TAG, "TTS功能检查失败，继续尝试初始化: " + e.getMessage());
-            }
-            
-            // 创建TTS对象
-            textToSpeech = new TextToSpeech(this, new TextToSpeech.OnInitListener() {
+            // 创建TTS对象 - 支持指定引擎
+            TextToSpeech.OnInitListener initListener = new TextToSpeech.OnInitListener() {
                 @Override
                 public void onInit(int status) {
                     Log.d(TAG, "========== TTS onInit回调触发 ==========");
                     Log.d(TAG, "onInit状态码: " + status + " (SUCCESS=" + TextToSpeech.SUCCESS + ")");
                     Log.d(TAG, "onInit线程: " + Thread.currentThread().getName());
-                    Log.d(TAG, "TextToSpeech对象: " + (textToSpeech != null ? "已创建" : "为"));
+                    Log.d(TAG, "TextToSpeech对象: " + (textToSpeech != null ? "已创建" : "为空"));
                     
                     if (status == TextToSpeech.SUCCESS) {
                         Log.d(TAG, "✓ TTS引擎初始化成功");
@@ -393,9 +410,6 @@ public class MainActivity extends Activity {
                             ttsInitialized = true;
                             Log.d(TAG, "========== TTS完全初始化成功 ==========");
                             runOnUiThread(() -> Toast.makeText(MainActivity.this, "TTS初始化成功", Toast.LENGTH_SHORT).show());
-                            
-                            // 初始化后立即测试（可选）
-                            // testTTS();
                         } else {
                             Log.e(TAG, "✗ TTS语言完全不支持");
                             Log.e(TAG, "最后一次语言设置结果: " + getResultCodeName(langResult));
@@ -420,7 +434,16 @@ public class MainActivity extends Activity {
                         });
                     }
                 }
-            });
+            };
+            
+            // 如果指定了引擎包名，使用指定的引擎
+            if (!currentTTSEngine.isEmpty() && !currentTTSEngine.equals("系统默认")) {
+                Log.d(TAG, "尝试使用指定的TTS引擎: " + currentTTSEngine);
+                textToSpeech = new TextToSpeech(this, initListener, currentTTSEngine);
+            } else {
+                Log.d(TAG, "使用系统默认TTS引擎");
+                textToSpeech = new TextToSpeech(this, initListener);
+            }
             
             // 设置超时检测，防止onInit回调不执行
             final Handler timeoutHandler = new Handler();
@@ -429,7 +452,7 @@ public class MainActivity extends Activity {
                 public void run() {
                     if (!ttsInitialized) {
                         Log.e(TAG, "✗ TTS初始化超时！onInit回调可能未执行");
-                        Log.e(TAG, "textToSpeech对象: " + (textToSpeech != null ? "存在" : "为"));
+                        Log.e(TAG, "textToSpeech对象: " + (textToSpeech != null ? "存在" : "为空"));
                         runOnUiThread(() -> {
                             Toast.makeText(MainActivity.this, "TTS初始化超时\n\n可能原因:\n1. 系统TTS服务未响应\n2. 设备性能不足\n3. 系统限制\n\n建议重启应用", Toast.LENGTH_LONG).show();
                         });
@@ -762,11 +785,13 @@ public class MainActivity extends Activity {
     private void showSettingsDialog() {
         AlertDialog.Builder builder = new AlertDialog.Builder(this);
         builder.setTitle("设置");
+        
         String[] options = {
             "搜索设置",
             "用户代理设置",
             "外部应用跳转: " + (shouldOverrideExternalApp ? "开启" : "关闭"),
             "查看下载文件",
+            "语音引擎设置",
             "朗读当前页面",
             "屏蔽网站管理"
         };
@@ -776,11 +801,95 @@ public class MainActivity extends Activity {
                 case 1: showUserAgentDialog(); break;
                 case 2: toggleExternalAppOverride(); break;
                 case 3: openDownloadFolder(); break;
-                case 4: readPage(); break;
-                case 5: showBlockedDomainsDialog(); break;
+                case 4: showTTSEngineDialog(); break;
+                case 5: readPage(); break;
+                case 6: showBlockedDomainsDialog(); break;
             }
         });
         builder.show();
+    }
+    
+    /**
+     * 显示TTS引擎选择对话框
+     */
+    private void showTTSEngineDialog() {
+        AlertDialog.Builder builder = new AlertDialog.Builder(this);
+        builder.setTitle("选择语音引擎");
+        
+        // 获取系统中已安装的TTS引擎
+        android.speech.tts.TextToSpeech.EngineInfo[] engines = null;
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.ICE_CREAM_SANDWICH) {
+            android.speech.tts.TextToSpeech tempTTS = new android.speech.tts.TextToSpeech(this, null);
+            engines = tempTTS.getEngines().toArray(new android.speech.tts.TextToSpeech.EngineInfo[0]);
+            tempTTS.shutdown();
+        }
+        
+        final List<android.speech.tts.TextToSpeech.EngineInfo> engineList = new ArrayList<>();
+        engineList.add(new CustomEngineInfo("系统默认", "", true));
+        
+        if (engines != null) {
+            for (android.speech.tts.TextToSpeech.EngineInfo info : engines) {
+                engineList.add(info);
+            }
+        }
+        
+        String[] engineNames = new String[engineList.size()];
+        int selectedIndex = 0;
+        
+        for (int i = 0; i < engineList.size(); i++) {
+            android.speech.tts.TextToSpeech.EngineInfo info = engineList.get(i);
+            if (i == 0) {
+                engineNames[i] = "系统默认引擎";
+            } else {
+                String name = info.name;
+                String label = info.label;
+                // 识别常见引擎
+                if (info.name != null && info.name.contains("xiaomi")) {
+                    name = "🎤 小爱语音 (Xiaomi)";
+                } else if (info.name != null && info.name.contains("google")) {
+                    name = "🔊 Google语音合成";
+                }
+                engineNames[i] = name + (label != null ? " (" + label + ")" : "");
+            }
+            
+            if (currentTTSEngine != null && currentTTSEngine.equals(info.name)) {
+                selectedIndex = i;
+            }
+        }
+        
+        builder.setSingleChoiceItems(engineNames, selectedIndex, (dialog, which) -> {
+            // 保存选择的引擎
+            currentTTSEngine = engineList.get(which).name;
+            
+            // 保存到SharedPreferences
+            SharedPreferences prefs = getSharedPreferences(PREFS_NAME, MODE_PRIVATE);
+            prefs.edit().putString(PREF_TTS_ENGINE, currentTTSEngine).apply();
+            
+            dialog.dismiss();
+            
+            // 重新初始化TTS
+            if (textToSpeech != null) {
+                textToSpeech.shutdown();
+            }
+            ttsInitialized = false;
+            initTTS();
+            
+            String engineName = which == 0 ? "系统默认" : engineNames[which];
+            Toast.makeText(this, "已切换到: " + engineName + "\n正在重新初始化...", Toast.LENGTH_SHORT).show();
+        });
+        
+        builder.setNegativeButton("取消", null);
+        builder.show();
+    }
+    
+    /**
+     * 自定义引擎信息包装类（用于系统默认选项）
+     */
+    private static class CustomEngineInfo extends android.speech.tts.TextToSpeech.EngineInfo {
+        public CustomEngineInfo(String name, String label, boolean isDefault) {
+            this.name = name;
+            this.label = label;
+        }
     }
     /**
      * 读取当前页面并朗读（修复版）
