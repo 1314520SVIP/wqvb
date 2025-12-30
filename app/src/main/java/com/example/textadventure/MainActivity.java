@@ -30,6 +30,8 @@ import java.util.Locale;
 import java.util.HashMap;
 import java.util.Set;
 import java.util.HashSet;
+import java.util.ArrayList;
+import java.util.List;
 import android.content.SharedPreferences;
 import android.widget.ListView;
 import android.widget.AdapterView;
@@ -56,6 +58,12 @@ public class MainActivity extends Activity {
     private Set<String> blockedDomains = new HashSet<>();
     private static final String PREFS_NAME = "BrowserPrefs";
     private static final String KEY_BLOCKED_DOMAINS = "blocked_domains";
+    
+    // TTS 相关增强变量
+    private List<String> extractedTexts = new ArrayList<>();
+    private int currentTextIndex = -1;
+    private boolean isTTSActive = false;
+    private boolean isPlaying = false;
 
     // User Agents
     private static final String UA_ANDROID_PHONE = "Mozilla/5.0 (Linux; Android 10; SM-G975F) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.120 Mobile Safari/537.36";
@@ -118,6 +126,8 @@ public class MainActivity extends Activity {
                             Log.e(TAG, "TTS语言不支持");
                         } else {
                             Log.d(TAG, "TTS初始化成功");
+                            // 设置语速
+                            textToSpeech.setSpeechRate(0.9f);
                         }
                     } else {
                         Log.e(TAG, "TTS初始化失败: " + status);
@@ -428,41 +438,91 @@ public class MainActivity extends Activity {
 
         // 停止当前正在朗读的内容
         textToSpeech.stop();
+        isPlaying = false;
+        isTTSActive = false;
+        extractedTexts.clear();
+        currentTextIndex = -1;
 
-        webView.evaluateJavascript("(function(){ return document.body.innerText; })();", value -> {
-            if (value == null || value.equals("") || value.trim().isEmpty()) {
-                Toast.makeText(this, "页面中没有可朗读的文字", Toast.LENGTH_SHORT).show();
-                return;
-            }
+        // 使用参考项目的文本提取逻辑
+        String jsCode = "javascript:(function() {" +
+            "var allText = '';" +
+            "var elements = document.querySelectorAll('p, div, span, h1, h2, h3, h4, h5, h6, li, td, th, article, section');" +
+            "elements.forEach(function(el) {" +
+            "   var text = el.innerText.trim();" +
+            "   if (text && text.length > 5) {" +
+            "       allText += text + '。';" +
+            "   }" +
+            "});" +
+            "return allText;" +
+            "})()";
+        
+        webView.evaluateJavascript(jsCode, new ValueCallback<String>() {
+            @Override
+            public void onReceiveValue(String value) {
+                if (value != null && !value.equals("") && !value.trim().isEmpty()) {
+                    try {
+                        // 清理文本：移除JSON引号包装，处理转义字符
+                        String cleanText = value.replaceAll("^\"|\"$", "").replace("\\n", "\n").replace("\\\"", "\"").trim();
+                        
+                        if (cleanText.isEmpty()) {
+                            Toast.makeText(MainActivity.this, "页面中没有可朗读的文字", Toast.LENGTH_SHORT).show();
+                            return;
+                        }
 
-            try {
-                // 清理文本：移除转义引号，去除首尾空白
-                String text = value.replace("\\\"", "\"").trim();
-                
-                // 如果文本太长，可能需要截断或分段朗读（这里简化处理）
-                if (text.length() > 5000) {
-                    text = text.substring(0, 5000);
-                    Toast.makeText(this, "文字过长，仅朗读前5000字", Toast.LENGTH_LONG).show();
-                }
+                        // 按句号分割成句子列表
+                        String[] sentences = cleanText.split("。");
+                        for (String sentence : sentences) {
+                            if (!sentence.trim().isEmpty()) {
+                                // 重新添加句号
+                                extractedTexts.add(sentence.trim() + "。");
+                            }
+                        }
 
-                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.LOLLIPOP) {
-                    int result = textToSpeech.speak(text, TextToSpeech.QUEUE_FLUSH, null, "ReadPage");
-                    if (result == TextToSpeech.ERROR) {
-                        Toast.makeText(this, "朗读失败", Toast.LENGTH_SHORT).show();
-                        Log.e(TAG, "speak returned ERROR");
-                    } else {
-                        Toast.makeText(this, "开始朗读...", Toast.LENGTH_SHORT).show();
-                        Log.d(TAG, "Speaking text length: " + text.length());
+                        if (extractedTexts.isEmpty()) {
+                            Toast.makeText(MainActivity.this, "未能提取到有效句子", Toast.LENGTH_SHORT).show();
+                            return;
+                        }
+                        
+                        // 设置当前朗读状态
+                        isTTSActive = true;
+                        currentTextIndex = 0;
+                        
+                        // 开始朗读第一句
+                        speakCurrentSentence();
+                        
+                        Toast.makeText(MainActivity.this, "开始朗读，共 " + extractedTexts.size() + " 句", Toast.LENGTH_SHORT).show();
+                        Log.d(TAG, "Extracted " + extractedTexts.size() + " sentences");
+                    } catch (Exception e) {
+                        Log.e(TAG, "朗读异常", e);
+                        Toast.makeText(MainActivity.this, "朗读出错: " + e.getMessage(), Toast.LENGTH_SHORT).show();
                     }
                 } else {
-                    textToSpeech.speak(text, TextToSpeech.QUEUE_FLUSH, null);
-                    Toast.makeText(this, "开始朗读...", Toast.LENGTH_SHORT).show();
+                    Toast.makeText(MainActivity.this, "页面中没有可朗读的文字", Toast.LENGTH_SHORT).show();
                 }
-            } catch (Exception e) {
-                Log.e(TAG, "朗读异常", e);
-                Toast.makeText(this, "朗读出错: " + e.getMessage(), Toast.LENGTH_SHORT).show();
             }
         });
+    }
+    
+    /**
+     * 朗读当前句子
+     */
+    private void speakCurrentSentence() {
+        if (!isTTSActive || extractedTexts.isEmpty() || currentTextIndex >= extractedTexts.size()) {
+            return;
+        }
+        
+        String text = extractedTexts.get(currentTextIndex);
+        if (textToSpeech != null) {
+            isPlaying = true;
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.LOLLIPOP) {
+                textToSpeech.speak(text, TextToSpeech.QUEUE_FLUSH, null, "sentence_" + currentTextIndex);
+            } else {
+                HashMap<String, String> params = new HashMap<>();
+                params.put(TextToSpeech.Engine.KEY_PARAM_UTTERANCE_ID, "sentence_" + currentTextIndex);
+                textToSpeech.speak(text, TextToSpeech.QUEUE_FLUSH, params);
+            }
+            Log.d(TAG, "Speaking sentence " + currentTextIndex + ": " + text.substring(0, Math.min(20, text.length())));
+        }
     }
 
     private void openDownloadFolder() {
