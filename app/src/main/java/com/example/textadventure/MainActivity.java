@@ -221,6 +221,7 @@ public class MainActivity extends Activity {
         }
         
         loadBlockedDomains();
+        logOperation("应用启动 - 加载首页", 224);
         webView.loadUrl("https://www.baidu.com");
     }
     
@@ -611,8 +612,11 @@ public class MainActivity extends Activity {
         });
 
         btnBack.setOnClickListener(v -> { if (webView.canGoBack()) webView.goBack(); });
+        logOperation("后退", 613);
         btnForward.setOnClickListener(v -> { if (webView.canGoForward()) webView.goForward(); });
+        logOperation("前进", 614);
         btnRefresh.setOnClickListener(v -> webView.reload());
+        logOperation("刷新页面", 615);
 
         btnGo.setOnClickListener(v -> {
             String url = etUrl.getText().toString();
@@ -624,11 +628,13 @@ public class MainActivity extends Activity {
                         url = "http://" + url;
                     }
                 }
+                        logOperation("加载URL", 627, url);
                 webView.loadUrl(url);
             }
         });
 
         btnSettings.setOnClickListener(v -> showSettingsDialog());
+        logOperation("打开设置", 631);
 
         etUrl.setOnEditorActionListener((v, actionId, event) -> {
             if (actionId == EditorInfo.IME_ACTION_GO) {
@@ -826,6 +832,7 @@ public class MainActivity extends Activity {
      * 显示TTS引擎选择对话框
      */
     private void showTTSEngineDialog() {
+        logOperation("打开TTS引擎设置", 828);
         AlertDialog.Builder builder = new AlertDialog.Builder(this);
         builder.setTitle("选择语音引擎");
         
@@ -978,6 +985,7 @@ public class MainActivity extends Activity {
      * 切换调试日志开关
      */
     private void toggleDebugLog() {
+        logOperation("切换调试日志开关", 980);
         debugLogEnabled = !debugLogEnabled;
         SharedPreferences prefs = getSharedPreferences(PREFS_NAME, MODE_PRIVATE);
         prefs.edit().putBoolean(PREF_DEBUG_LOG, debugLogEnabled).apply();
@@ -998,6 +1006,7 @@ public class MainActivity extends Activity {
      * 显示日志管理对话框
      */
     private void showLogDialog() {
+        logOperation("查看日志", 1001);
         AlertDialog.Builder builder = new AlertDialog.Builder(this);
         builder.setTitle("日志管理");
         
@@ -1129,6 +1138,19 @@ public class MainActivity extends Activity {
         }
         
         // 同时输出到Logcat
+
+    // 日志辅助方法：记录操作和行号
+    private void logOperation(String operation, int lineNumber) {
+        if (debugLogEnabled) {
+            addLog("[" + lineNumber + "] " + operation);
+        }
+    }
+
+    private void logOperation(String operation, int lineNumber, String details) {
+        if (debugLogEnabled) {
+            addLog("[" + lineNumber + "] " + operation + " - " + details);
+        }
+    }
         if (message.contains("==========")) {
             Log.d(TAG, message);
         } else {
@@ -1158,6 +1180,7 @@ public class MainActivity extends Activity {
      * 读取当前页面并朗读（修复版）
      */
     private void readPage() {
+        logOperation("朗读当前页面", 1174);
         // 检查TTS是否已初始化
         if (!ttsInitialized || textToSpeech == null) {
             // TTS未初始化，显示提示并尝试等待初始化完成
@@ -1569,6 +1592,7 @@ public class MainActivity extends Activity {
         } catch (Exception e) {
             Log.e(TAG, "无法打开下载文件夹", e);
         }
+        logOperation("打开搜索引擎设置", 1588);
     }
 
     private void showSearchEngineDialog() {
@@ -1587,6 +1611,7 @@ public class MainActivity extends Activity {
             currentSearchEngine = urls[which];
             webView.loadUrl(homes[which]);
         });
+        logOperation("打开用户代理设置", 1607);
         builder.show();
     }
 
@@ -1601,6 +1626,7 @@ public class MainActivity extends Activity {
             currentUA = agentStrings[which];
             webView.getSettings().setUserAgentString(currentUA);
             webView.reload();
+        logOperation("切换外部应用跳转", 1622);
         });
         builder.show();
     }
@@ -1635,6 +1661,7 @@ public class MainActivity extends Activity {
 
     private void saveBlockedDomains() {
         SharedPreferences prefs = getSharedPreferences(PREFS_NAME, MODE_PRIVATE);
+        logOperation("打开屏蔽网站管理", 1657);
         SharedPreferences.Editor editor = prefs.edit();
         editor.putStringSet(KEY_BLOCKED_DOMAINS, blockedDomains);
         editor.apply();
