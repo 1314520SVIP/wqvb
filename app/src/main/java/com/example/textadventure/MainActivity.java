@@ -388,17 +388,23 @@ public class MainActivity extends Activity {
                     }
                     
                     ttsInitialized = true;
-                    runOnUiThread(() -> {
+                    runOnUiThread(new Runnable() {
+                @Override
+                public void run() {
                         Toast.makeText(MainActivity.this, "TTS初始化成功", Toast.LENGTH_SHORT).show();
                         addLog("提示: TTS初始化成功");
-                    });
+                                    }
+            });
                 }
             } else {
                 ttsInitialized = false;
-                runOnUiThread(() -> {
+                runOnUiThread(new Runnable() {
+                @Override
+                public void run() {
                     Toast.makeText(MainActivity.this, "初始化TTS失败", Toast.LENGTH_SHORT).show();
                     addLog("提示: 初始化TTS失败");
-                });
+                                }
+            });
             }
         }
     };
@@ -439,25 +445,22 @@ public class MainActivity extends Activity {
                                 }
                                 
                                 ttsInitialized = true;
-                                runOnUiThread(() -> {
+                                runOnUiThread(new Runnable() {
+                @Override
+                public void run() {
                                     Toast.makeText(MainActivity.this, "TTS初始化成功", Toast.LENGTH_SHORT).show();
                                     addLog("提示: TTS初始化成功");
-                                });
+                                                }
+            });
                             }
                         } else {
                             ttsInitialized = false;
-                            runOnUiThread(() -> {
+                            runOnUiThread(new Runnable() {
+                @Override
+                public void run() {
                                 Toast.makeText(MainActivity.this, "初始化TTS失败", Toast.LENGTH_SHORT).show();
                                 addLog("提示: 初始化TTS失败");
-                            });
-                        }
-                    }
-                });
-            }
-        });
-    }
-
-private void handleUtteranceDone() {
+    private void handleUtteranceDone() {
         // 自动播放下一句
         if (isPlaying && currentTextIndex < extractedTexts.size() - 1) {
             currentTextIndex++;
@@ -476,29 +479,42 @@ private void handleUtteranceDone() {
             isPlaying = false;
             isTTSActive = false;
             abandonAudioFocus();
-            runOnUiThread(() -> {
-                Toast.makeText(MainActivity.this, "朗读结束", Toast.LENGTH_SHORT).show();
-                addLog("提示: 朗读结束");
+            Runnable toastRunnable = new Runnable() {
+                @Override
+                public void run() {
+                    Toast.makeText(MainActivity.this, "朗读结束", Toast.LENGTH_SHORT).show();
+                    addLog("提示: 朗读结束");
+                }
+            };
+            runOnUiThread(toastRunnable);
+        }
+    }
+                            }
             });
         }
     }
-
 private void testTTS() {
         if (ttsInitialized && textToSpeech != null) {
-            new Handler().postDelayed(() -> {
-                try {
-                    if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.LOLLIPOP) {
-                        textToSpeech.speak("TTS测试", TextToSpeech.QUEUE_FLUSH, null, "test");
-                    } else {
-                        HashMap<String, String> params = new HashMap<>();
-                        params.put(TextToSpeech.Engine.KEY_PARAM_UTTERANCE_ID, "test");
-                        textToSpeech.speak("TTS测试", TextToSpeech.QUEUE_FLUSH, params);
+            Handler ttsHandler = new Handler();
+            ttsHandler.postDelayed(new Runnable() {
+                @Override
+                public void run() {
+                    try {
+                        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.LOLLIPOP) {
+                            textToSpeech.speak("TTS测试", TextToSpeech.QUEUE_FLUSH, null, "test");
+                        } else {
+                            HashMap<String, String> params = new HashMap<>();
+                            params.put(TextToSpeech.Engine.KEY_PARAM_UTTERANCE_ID, "test");
+                            textToSpeech.speak("TTS测试", TextToSpeech.QUEUE_FLUSH, params);
+                        }
+                        Log.d(TAG, "TTS测试已执行");
+                    } catch (Exception e) {
+                        Log.e(TAG, "TTS测试失败", e);
                     }
-                    Log.d(TAG, "TTS测试已执行");
-                } catch (Exception e) {
-                    Log.e(TAG, "TTS测试失败", e);
                 }
             }, 1000);
+        }
+    }
         }
     }
     private void setupKeyboardListener() {
@@ -590,14 +606,22 @@ private void testTTS() {
             }
         });
 
-        btnBack.setOnClickListener(v -> { if (webView.canGoBack()) webView.goBack(); });
+        btnBack.setOnClickListener(new View.OnClickListener() {
+                @Override
+                public void onClick(View v) { if (webView.canGoBack()) webView.goBack();                 }
+            });
                 logOperation("后退", 613);
-        btnForward.setOnClickListener(v -> { if (webView.canGoForward()) webView.goForward(); });
+        btnForward.setOnClickListener(new View.OnClickListener() {
+                @Override
+                public void onClick(View v) { if (webView.canGoForward()) webView.goForward();                 }
+            });
                 logOperation("前进", 614);
         btnRefresh.setOnClickListener(v -> webView.reload());
                 logOperation("刷新页面", 615);
 
-        btnGo.setOnClickListener(v -> {
+        btnGo.setOnClickListener(new View.OnClickListener() {
+                @Override
+                public void onClick(View v) {
             String url = etUrl.getText().toString();
                     logOperation("准备加载URL", 617, url);
             if (!TextUtils.isEmpty(url)) {
@@ -610,7 +634,8 @@ private void testTTS() {
                 }
                 webView.loadUrl(url);
             }
-        });
+                        }
+            });
 
         btnSettings.setOnClickListener(v -> showSettingsDialog());
                 logOperation("打开设置", 631);
@@ -1180,7 +1205,9 @@ private void testTTS() {
             Log.w(TAG, "readPage: TTS未完全初始化，等待中...");
             
             // 设置一个延迟，等待TTS初始化完成
-            new Handler().postDelayed(() -> {
+            new Handler().postDelayed(new Runnable() {
+                @Override
+                public void run() {
                 if (ttsInitialized && textToSpeech != null) {
                     Toast.makeText(MainActivity.this, "TTS初始化完成，开始朗读", Toast.LENGTH_SHORT).show();
                     addLog("提示: TTS初始化完成，开始朗读");
@@ -1229,7 +1256,8 @@ private void testTTS() {
             "           allText += text + '。';" +
             "       }" +
             "   }" +
-            "});" +
+            "                }
+            });" +
             "return allText;" +
             "})()";
         
@@ -1687,9 +1715,12 @@ private void testTTS() {
             return;
         }
 
-        builder.setItems(domainList.toArray(new String[0]), (dialog, which) -> {
+        builder.setItems(domainList.toArray(new String[0]), new DialogInterface.OnClickListener() {
+                @Override
+                public void onClick(DialogInterface dialog, int which) {
             // 点击项可以查看详情或删除，这里简化为长按删除
-        });
+                        }
+            }));
 
         builder.setNegativeButton("返回", null);
         builder.setNeutralButton("添加", (dialog, which) -> showAddBlockedDomainDialog());
