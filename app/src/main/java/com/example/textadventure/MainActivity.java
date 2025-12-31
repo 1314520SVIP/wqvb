@@ -385,6 +385,35 @@ public class MainActivity extends Activity {
             }
         });
     }
+    /**
+     * 处理朗读完成事件
+     */
+    private void handleUtteranceDone() {
+        // 自动播放下一句
+        if (isPlaying && currentTextIndex < extractedTexts.size() - 1) {
+            currentTextIndex++;
+            highlightCurrentSentence();
+            if (textToSpeech != null) {
+                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.LOLLIPOP) {
+                    textToSpeech.speak(extractedTexts.get(currentTextIndex), TextToSpeech.QUEUE_FLUSH, null, "TTS_UTTERANCE_ID");
+                } else {
+                    HashMap<String, String> params = new HashMap<>();
+                    params.put(TextToSpeech.Engine.KEY_PARAM_UTTERANCE_ID, "TTS_UTTERANCE_ID");
+                    textToSpeech.speak(extractedTexts.get(currentTextIndex), TextToSpeech.QUEUE_FLUSH, params);
+                }
+            }
+        } else if (isPlaying) {
+            // 播放完成
+            isPlaying = false;
+            isTTSActive = false;
+            abandonAudioFocus();
+            runOnUiThread(() -> {
+                Toast.makeText(MainActivity.this, "朗读结束", Toast.LENGTH_SHORT).show();
+                addLog("提示: 朗读结束");
+            });
+        }
+    }
+
 private void testTTS() {
         if (ttsInitialized && textToSpeech != null) {
             new Handler().postDelayed(() -> {
