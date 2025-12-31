@@ -1660,7 +1660,7 @@ public class MainActivity extends Activity {
                 public void onClick(DialogInterface dialog, int which) {
             // 点击项可以查看详情或删除，这里简化为长按删除
                         }
-            }));
+            });
 
         builder.setNegativeButton("返回", null);
         builder.setNeutralButton("添加", (dialog, which) -> showAddBlockedDomainDialog());
