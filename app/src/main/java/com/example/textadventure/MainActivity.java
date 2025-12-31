@@ -1157,6 +1157,7 @@ public class MainActivity extends Activity {
                     Toast.makeText(MainActivity.this, "TTS初始化失败，请检查系统TTS设置", Toast.LENGTH_LONG).show();
                     addLog("提示: TTS初始化失败，请检查系统TTS设置");
                 }
+            }
             }, 2000);
             return;
         }
@@ -1184,7 +1185,6 @@ public class MainActivity extends Activity {
             Toast.makeText(this, "无法获取音频焦点，可能无法朗读", Toast.LENGTH_SHORT).show();
             addLog("提示: 无法获取音频焦点，可能无法朗读");
         }
-
         // 使用改进的文本提取逻辑
         String jsCode = "javascript:(function() {" +
             "var allText = '';" +
@@ -1197,8 +1197,7 @@ public class MainActivity extends Activity {
             "           allText += text + '。';" +
             "       }" +
             "   }" +
-            "                }
-            });" +
+            "});" +
             "return allText;" +
             "})()";
         
