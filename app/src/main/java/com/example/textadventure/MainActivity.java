@@ -306,89 +306,69 @@ public class MainActivity extends Activity {
         /**
      * 初始化TTS（完全参考Application3实现 - 极简版）
      */
-        private void initTTS() {
-        // 关键修复：在主线程中初始化TTS
+            private void initTTS() {
+        // 关键修复：在主线程中初始化TTS（参考Application3）
         runOnUiThread(new Runnable() {
             @Override
             public void run() {
-                try {
-                    Log.d(TAG, "========== 开始初始化TTS引擎 ==========");
-                    
-                    // 直接使用系统默认TTS，不指定引擎（参考Application3）
-                    textToSpeech = new TextToSpeech(MainActivity.this, new TextToSpeech.OnInitListener() {
-                        @Override
-                        public void onInit(int status) {
-                            Log.d(TAG, "========== TTS onInit回调触发 ==========");
-                            Log.d(TAG, "onInit状态码: " + status + " (SUCCESS=" + TextToSpeech.SUCCESS + ")");
-                            
-                            if (status == TextToSpeech.SUCCESS) {
-                                Log.d(TAG, "✓ TTS引擎初始化成功");
+                // 直接使用系统默认TTS，不指定引擎
+                textToSpeech = new TextToSpeech(MainActivity.this, new TextToSpeech.OnInitListener() {
+                    @Override
+                    public void onInit(int status) {
+                        if (status == TextToSpeech.SUCCESS) {
+                            int result = textToSpeech.setLanguage(Locale.getDefault());
+                            if (result == TextToSpeech.LANG_MISSING_DATA || result == TextToSpeech.LANG_NOT_SUPPORTED) {
+                                Toast.makeText(MainActivity.this, "语言数据不支持", Toast.LENGTH_SHORT).show();
+                            } else {
+                                // 设置语速和音调
+                                textToSpeech.setSpeechRate(currentSpeechRate);
+                                textToSpeech.setPitch(currentPitch);
                                 
-                                // 简化语言设置（参考Application3）
-                                int result = textToSpeech.setLanguage(Locale.getDefault());
-                                
-                                if (result == TextToSpeech.LANG_MISSING_DATA || result == TextToSpeech.LANG_NOT_SUPPORTED) {
-                                    Toast.makeText(MainActivity.this, "语言数据不支持", Toast.LENGTH_SHORT).show();
-                                } else {
-                                    // 设置语速和音调
-                                    textToSpeech.setSpeechRate(currentSpeechRate);
-                                    textToSpeech.setPitch(currentPitch);
-                                    
-                                    // 设置朗读完成监听器
-                                    if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.ICE_CREAM_SANDWICH_MR1) {
-                                        textToSpeech.setOnUtteranceProgressListener(new android.speech.tts.UtteranceProgressListener() {
-                                            @Override
-                                            public void onStart(String utteranceId) {
-                                                // 朗读开始
-                                            }
-                                            
-                                            @Override
-                                            public void onDone(String utteranceId) {
-                                                runOnUiThread(new Runnable() {
-                                                    @Override
-                                                    public void run() {
-                                                        handleUtteranceDone();
-                                                    }
-                                                });
-                                            }
-                                            
-                                            @Override
-                                            public void onError(String utteranceId) {
-                                                // 朗读错误
-                                            }
-                                        });
-                                    }
-                                    
-                                    ttsInitialized = true;
-                                    Log.d(TAG, "========== TTS完全初始化成功 ==========");
-                                    runOnUiThread(() -> {
-                                        Toast.makeText(MainActivity.this, "TTS初始化成功", Toast.LENGTH_SHORT).show();
-                                        addLog("提示: TTS初始化成功");
+                                // 设置朗读完成监听器
+                                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.ICE_CREAM_SANDWICH_MR1) {
+                                    textToSpeech.setOnUtteranceProgressListener(new android.speech.tts.UtteranceProgressListener() {
+                                        @Override
+                                        public void onStart(String utteranceId) {
+                                            // 朗读开始
+                                        }
+                                        
+                                        @Override
+                                        public void onDone(String utteranceId) {
+                                            runOnUiThread(new Runnable() {
+                                                @Override
+                                                public void run() {
+                                                    handleUtteranceDone();
+                                                }
+                                            });
+                                        }
+                                        
+                                        @Override
+                                        public void onError(String utteranceId) {
+                                            // 朗读错误
+                                        }
                                     });
                                 }
-                            } else {
-                                Log.e(TAG, "✗ TTS初始化失败");
-                                ttsInitialized = false;
+                                
+                                ttsInitialized = true;
                                 runOnUiThread(() -> {
-                                    Toast.makeText(MainActivity.this, "初始化TTS失败", Toast.LENGTH_SHORT).show();
+                                    Toast.makeText(MainActivity.this, "TTS初始化成功", Toast.LENGTH_SHORT).show();
+                                    addLog("提示: TTS初始化成功");
                                 });
                             }
+                        } else {
+                            ttsInitialized = false;
+                            runOnUiThread(() -> {
+                                Toast.makeText(MainActivity.this, "初始化TTS失败", Toast.LENGTH_SHORT).show();
+                                addLog("提示: 初始化TTS失败");
+                            });
                         }
-                    });
-                    
-                    Log.d(TAG, "TTS初始化请求已发送，等待onInit回调...");
-                } catch (Exception e) {
-                    Log.e(TAG, "TTS初始化异常", e);
-                    ttsInitialized = false;
-                    runOnUiThread(() -> Toast.makeText(MainActivity.this, "TTS初始化异常: " + e.getMessage(), Toast.LENGTH_LONG).show());
-                }
+                    }
+                });
             }
         });
     }
-    /**
-     * 处理朗读完成事件
-     */
-    private void handleUtteranceDone() {
+
+private void handleUtteranceDone() {
         // 自动播放下一句
         if (isPlaying && currentTextIndex < extractedTexts.size() - 1) {
             currentTextIndex++;
