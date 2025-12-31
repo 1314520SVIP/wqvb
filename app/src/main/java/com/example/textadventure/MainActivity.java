@@ -102,6 +102,8 @@ public class MainActivity extends Activity {
     // 新增：TTS引擎选择
     private String currentTTSEngine = ""; // 当前选择的TTS引擎包名
     private static final String PREF_TTS_ENGINE = "tts_engine";
+    private static final String PREF_SPEECH_RATE = "tts_speech_rate";
+    private static final String PREF_PITCH = "tts_pitch";
     
     // 新增：日志管理功能
     private boolean debugLogEnabled = false;
@@ -297,22 +299,109 @@ public class MainActivity extends Activity {
         }
     }
     
-        /**
-     * 初始化TTS（简化版 - 参考Application3实现）
-     */
     /**
-     * 初始化TTS（简化版 - 参考Application3实现）
+     * 加载TTS设置（新增方法）
      */
-        /**
+    private void loadTTSSettings() {
+        SharedPreferences prefs = getSharedPreferences(PREFS_NAME, MODE_PRIVATE);
+        currentTTSEngine = prefs.getString(PREF_TTS_ENGINE, ""); // 默认为空字符串，表示系统默认
+        debugLogEnabled = prefs.getBoolean(PREF_DEBUG_LOG, false);
+        currentSpeechRate = prefs.getFloat(PREF_SPEECH_RATE, 0.9f);
+        currentPitch = prefs.getFloat(PREF_PITCH, 1.0f);
+    }
+    
+    /**
+     * 保存TTS设置（新增方法）
+     */
+    private void saveTTSSettings() {
+        SharedPreferences prefs = getSharedPreferences(PREFS_NAME, MODE_PRIVATE);
+        SharedPreferences.Editor editor = prefs.edit();
+        editor.putString(PREF_TTS_ENGINE, currentTTSEngine);
+        editor.putFloat(PREF_SPEECH_RATE, currentSpeechRate);
+        editor.putFloat(PREF_PITCH, currentPitch);
+        editor.apply();
+    }
+    /**
      * 初始化TTS（完全参考Application3实现 - 极简版）
      */
-            private void initTTS() {
+    private void initTTS() {
         // 关键修复：在主线程中初始化TTS（参考Application3）
         runOnUiThread(new Runnable() {
             @Override
             public void run() {
-                // 直接使用系统默认TTS，不指定引擎
-                textToSpeech = new TextToSpeech(MainActivity.this, new TextToSpeech.OnInitListener() {
+                // 根据设置创建TextToSpeech对象
+                if (TextUtils.isEmpty(currentTTSEngine)) {
+                    // 使用系统默认TTS引擎
+                    textToSpeech = new TextToSpeech(MainActivity.this, ttsInitListener);
+                } else {
+                    // 使用指定的TTS引擎（Android 14+需要指定包名）
+                    try {
+                        textToSpeech = new TextToSpeech(MainActivity.this, ttsInitListener, currentTTSEngine);
+                    } catch (Exception e) {
+                        Log.e(TAG, "初始化指定TTS引擎失败，使用默认引擎", e);
+                        // 回退到系统默认引擎
+                        textToSpeech = new TextToSpeech(MainActivity.this, ttsInitListener);
+                    }
+                }
+            }
+        });
+    }
+    
+    /**
+     * TTS初始化监听器（提取为独立变量，避免重复创建）
+     */
+    private final TextToSpeech.OnInitListener ttsInitListener = new TextToSpeech.OnInitListener() {
+        @Override
+        public void onInit(int status) {
+            if (status == TextToSpeech.SUCCESS) {
+                int result = textToSpeech.setLanguage(Locale.getDefault());
+                if (result == TextToSpeech.LANG_MISSING_DATA || result == TextToSpeech.LANG_NOT_SUPPORTED) {
+                    Toast.makeText(MainActivity.this, "语言数据不支持", Toast.LENGTH_SHORT).show();
+                } else {
+                    // 设置语速和音调
+                    textToSpeech.setSpeechRate(currentSpeechRate);
+                    textToSpeech.setPitch(currentPitch);
+                    
+                    // 设置朗读完成监听器
+                    if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.ICE_CREAM_SANDWICH_MR1) {
+                        textToSpeech.setOnUtteranceProgressListener(new android.speech.tts.UtteranceProgressListener() {
+                            @Override
+                            public void onStart(String utteranceId) {
+                                // 朗读开始
+                            }
+                            
+                            @Override
+                            public void onDone(String utteranceId) {
+                                runOnUiThread(new Runnable() {
+                                    @Override
+                                    public void run() {
+                                        handleUtteranceDone();
+                                    }
+                                });
+                            }
+                            
+                            @Override
+                            public void onError(String utteranceId) {
+                                // 朗读错误
+                            }
+                        });
+                    }
+                    
+                    ttsInitialized = true;
+                    runOnUiThread(() -> {
+                        Toast.makeText(MainActivity.this, "TTS初始化成功", Toast.LENGTH_SHORT).show();
+                        addLog("提示: TTS初始化成功");
+                    });
+                }
+            } else {
+                ttsInitialized = false;
+                runOnUiThread(() -> {
+                    Toast.makeText(MainActivity.this, "初始化TTS失败", Toast.LENGTH_SHORT).show();
+                    addLog("提示: 初始化TTS失败");
+                });
+            }
+        }
+    };
                     @Override
                     public void onInit(int status) {
                         if (status == TextToSpeech.SUCCESS) {
