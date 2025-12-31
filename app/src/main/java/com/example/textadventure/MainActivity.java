@@ -280,6 +280,7 @@ public class MainActivity extends Activity {
     
     /**
      * 放弃音频焦点
+     */
     private void abandonAudioFocus() {
         if (audioManager != null && hasAudioFocus) {
             audioManager.abandonAudioFocus(audioFocusChangeListener);
@@ -287,6 +288,7 @@ public class MainActivity extends Activity {
             Log.d(TAG, "已放弃音频焦点");
         }
     }
+    
     
     /**
      * 加载TTS设置
