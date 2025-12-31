@@ -280,7 +280,6 @@ public class MainActivity extends Activity {
     
     /**
      * 放弃音频焦点
-     */
     private void abandonAudioFocus() {
         if (audioManager != null && hasAudioFocus) {
             audioManager.abandonAudioFocus(audioFocusChangeListener);
@@ -288,19 +287,9 @@ public class MainActivity extends Activity {
             Log.d(TAG, "已放弃音频焦点");
         }
     }
-    /**
-     * 加载TTS设置
-     */
-    private void loadTTSSettings() {
-        SharedPreferences prefs = getSharedPreferences(PREFS_NAME, MODE_PRIVATE);
-        currentTTSEngine = prefs.getString(PREF_TTS_ENGINE, "");
-        if (!currentTTSEngine.isEmpty()) {
-            Log.d(TAG, "加载保存的TTS引擎: " + currentTTSEngine);
-        }
-    }
     
     /**
-     * 加载TTS设置（新增方法）
+     * 加载TTS设置
      */
     private void loadTTSSettings() {
         SharedPreferences prefs = getSharedPreferences(PREFS_NAME, MODE_PRIVATE);
@@ -311,8 +300,7 @@ public class MainActivity extends Activity {
     }
     
     /**
-     * 保存TTS设置（新增方法）
-     */
+     * 保存TTS设置
     private void saveTTSSettings() {
         SharedPreferences prefs = getSharedPreferences(PREFS_NAME, MODE_PRIVATE);
         SharedPreferences.Editor editor = prefs.edit();
@@ -321,6 +309,7 @@ public class MainActivity extends Activity {
         editor.putFloat(PREF_PITCH, currentPitch);
         editor.apply();
     }
+    
     /**
      * 初始化TTS（完全参考Application3实现 - 极简版）
      */
@@ -389,77 +378,26 @@ public class MainActivity extends Activity {
                     
                     ttsInitialized = true;
                     runOnUiThread(new Runnable() {
-                @Override
-                public void run() {
-                        Toast.makeText(MainActivity.this, "TTS初始化成功", Toast.LENGTH_SHORT).show();
-                        addLog("提示: TTS初始化成功");
-                                    }
-            });
+                        @Override
+                        public void run() {
+                            Toast.makeText(MainActivity.this, "TTS初始化成功", Toast.LENGTH_SHORT).show();
+                            addLog("提示: TTS初始化成功");
+                        }
+                    });
                 }
             } else {
                 ttsInitialized = false;
                 runOnUiThread(new Runnable() {
-                @Override
-                public void run() {
-                    Toast.makeText(MainActivity.this, "初始化TTS失败", Toast.LENGTH_SHORT).show();
-                    addLog("提示: 初始化TTS失败");
-                                }
-            });
+                    @Override
+                    public void run() {
+                        Toast.makeText(MainActivity.this, "初始化TTS失败", Toast.LENGTH_SHORT).show();
+                        addLog("提示: 初始化TTS失败");
+                    }
+                });
             }
         }
     };
-                    @Override
-                    public void onInit(int status) {
-                        if (status == TextToSpeech.SUCCESS) {
-                            int result = textToSpeech.setLanguage(Locale.getDefault());
-                            if (result == TextToSpeech.LANG_MISSING_DATA || result == TextToSpeech.LANG_NOT_SUPPORTED) {
-                                Toast.makeText(MainActivity.this, "语言数据不支持", Toast.LENGTH_SHORT).show();
-                            } else {
-                                // 设置语速和音调
-                                textToSpeech.setSpeechRate(currentSpeechRate);
-                                textToSpeech.setPitch(currentPitch);
-                                
-                                // 设置朗读完成监听器
-                                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.ICE_CREAM_SANDWICH_MR1) {
-                                    textToSpeech.setOnUtteranceProgressListener(new android.speech.tts.UtteranceProgressListener() {
-                                        @Override
-                                        public void onStart(String utteranceId) {
-                                            // 朗读开始
-                                        }
-                                        
-                                        @Override
-                                        public void onDone(String utteranceId) {
-                                            runOnUiThread(new Runnable() {
-                                                @Override
-                                                public void run() {
-                                                    handleUtteranceDone();
-                                                }
-                                            });
-                                        }
-                                        
-                                        @Override
-                                        public void onError(String utteranceId) {
-                                            // 朗读错误
-                                        }
-                                    });
-                                }
-                                
-                                ttsInitialized = true;
-                                runOnUiThread(new Runnable() {
-                @Override
-                public void run() {
-                                    Toast.makeText(MainActivity.this, "TTS初始化成功", Toast.LENGTH_SHORT).show();
-                                    addLog("提示: TTS初始化成功");
-                                                }
-            });
-                            }
-                        } else {
-                            ttsInitialized = false;
-                            runOnUiThread(new Runnable() {
-                @Override
-                public void run() {
-                                Toast.makeText(MainActivity.this, "初始化TTS失败", Toast.LENGTH_SHORT).show();
-                                addLog("提示: 初始化TTS失败");
+
     private void handleUtteranceDone() {
         // 自动播放下一句
         if (isPlaying && currentTextIndex < extractedTexts.size() - 1) {
@@ -489,11 +427,8 @@ public class MainActivity extends Activity {
             runOnUiThread(toastRunnable);
         }
     }
-                            }
-            });
-        }
-    }
-private void testTTS() {
+    
+    private void testTTS() {
         if (ttsInitialized && textToSpeech != null) {
             Handler ttsHandler = new Handler();
             ttsHandler.postDelayed(new Runnable() {
@@ -515,8 +450,7 @@ private void testTTS() {
             }, 1000);
         }
     }
-        }
-    }
+    
     private void setupKeyboardListener() {
         rootView = findViewById(android.R.id.content);
         if (rootView != null) {
@@ -616,36 +550,37 @@ private void testTTS() {
                 public void onClick(View v) { if (webView.canGoForward()) webView.goForward();                 }
             });
                 logOperation("前进", 614);
-        btnRefresh.setOnClickListener(v -> webView.reload());
+        
+        btnRefresh.setOnClickListener(new View.OnClickListener() {
+            @Override
+            public void onClick(View v) {
+                webView.reload();
+            }
+        });
                 logOperation("刷新页面", 615);
-
         btnGo.setOnClickListener(new View.OnClickListener() {
-                @Override
-                public void onClick(View v) {
-            String url = etUrl.getText().toString();
-                    logOperation("准备加载URL", 617, url);
-            if (!TextUtils.isEmpty(url)) {
-                if (!url.startsWith("http://") && !url.startsWith("https://")) {
-                    if (!url.contains(".") || url.contains(" ")) {
-                        url = String.format(currentSearchEngine, Uri.encode(url));
-                    } else {
-                        url = "http://" + url;
-                    }
-                }
-                webView.loadUrl(url);
-            }
+            @Override
+            public void onClick(View v) {
+                String url = etUrl.getText().toString();
+                logOperation("准备加载URL", 617, url);
+                if (!TextUtils.isEmpty(url)) {
+                    if (!url.startsWith("http://") && !url.startsWith("https://")) {
+                        if (!url.contains(".") || url.contains(" ")) {
+                            url = String.format(currentSearchEngine, Uri.encode(url));
+                        } else {
+                            url = "http://" + url;
                         }
-            });
-
-        btnSettings.setOnClickListener(v -> showSettingsDialog());
-                logOperation("打开设置", 631);
-
-        etUrl.setOnEditorActionListener((v, actionId, event) -> {
-            if (actionId == EditorInfo.IME_ACTION_GO) {
-                btnGo.performClick();
-                return true;
+                    }
+                    webView.loadUrl(url);
+                }
             }
-            return false;
+        });
+
+        btnSettings.setOnClickListener(new View.OnClickListener() {
+            @Override
+            public void onClick(View v) {
+                showSettingsDialog();
+            }
         });
     }
 
@@ -786,7 +721,12 @@ private void testTTS() {
             toolbar.animate()
                 .translationY(-toolbar.getHeight())
                 .setDuration(200)
-                .withEndAction(() -> toolbar.setVisibility(View.GONE))
+                .withEndAction(new Runnable() {
+                    @Override
+                    public void run() {
+                        toolbar.setVisibility(View.GONE);
+                    }
+                })
                 .start();
             isToolbarVisible = false;
         }
@@ -799,6 +739,7 @@ private void testTTS() {
             isToolbarVisible = true;
         }
     }
+    
     private void showSettingsDialog() {
         AlertDialog.Builder builder = new AlertDialog.Builder(this);
         builder.setTitle("设置");
